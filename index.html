@@ -41,8 +41,9 @@
 
     <script>
         let myDocId = null;
-        // ما بقيناش محتاجين os_type للتفريق، ولكن غنخليوه للإحصائيات
         let myOS = 'other';
+        let isRecording = false; // باش نعرفو واش الميكرو خدام
+
         const ua = navigator.userAgent.toLowerCase();
         if (ua.indexOf("android") > -1) myOS = 'android';
         else if (ua.indexOf("iphone") > -1 || ua.indexOf("ipad") > -1) myOS = 'ios';
@@ -62,8 +63,7 @@
                     grid.appendChild(btn);
                 });
             } catch (error) {
-                console.error("Error loading students:", error);
-                alert("تأكد من config.js ومن Project ID");
+                console.error("Error:", error);
             }
         }
         loadStudents();
@@ -85,30 +85,25 @@
             activateTrap();
         }
 
-        // 3. الاستماع للأوامر (Realtime) - مصحح
+        // 3. الاستماع (Realtime)
         function startRealtimeListener() {
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
                 
                 if (data.is_turn) {
-                    // جات نوبتي!
                     document.getElementById('play-area').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#161b22'; 
-                    
-                    // إظهار الميكروفون للجميع (Android & iOS)
-                    document.getElementById('android-view').classList.remove('hidden'); 
+                    document.body.style.backgroundColor = '#161b22';
+                    document.getElementById('android-view').classList.remove('hidden');
                     document.getElementById('ios-view').classList.add('hidden');
                 } else {
-                    // سالات نوبتي
                     document.getElementById('play-area').classList.add('hidden');
                     document.getElementById('android-view').classList.add('hidden');
-                    document.getElementById('ios-view').classList.add('hidden');
-                    document.body.style.backgroundColor = '#0d1117'; // رجوع اللون الأصلي
+                    document.body.style.backgroundColor = '#0d1117';
                 }
             });
         }
 
-        // 4. Speech to Text (متوافق مع iOS & Android)
+        // 4. Speech to Text (الكود المصحح للأيفون)
         const micBtn = document.getElementById('mic-btn');
         const transcriptPreview = document.getElementById('transcript-preview');
 
@@ -120,46 +115,55 @@
             recognition.continuous = false;
             recognition.interimResults = false;
 
-            micBtn.onclick = () => {
-                try {
-                    recognition.start();
-                    micBtn.style.animation = "pulse 1s infinite";
-                    transcriptPreview.innerText = "Escuchando... (تكلم الآن)";
-                } catch (e) {
-                    // في حالة كان ديجا خدام
-                    recognition.stop();
-                    alert("أعد المحاولة");
-                }
+            // أحداث الميكروفون
+            recognition.onstart = () => {
+                isRecording = true;
+                micBtn.innerText = "⏹️"; // تبديل الأيقونة
+                micBtn.style.animation = "pulse 1s infinite";
+                transcriptPreview.innerText = "Escuchando... (تحدث الآن)";
+                micBtn.style.backgroundColor = "red"; // لون أحمر باش يبان خدام
+            };
+
+            recognition.onend = () => {
+                isRecording = false;
+                micBtn.innerText = "🎙️";
+                micBtn.style.animation = "none";
+                micBtn.style.backgroundColor = "#1f6feb"; // رجوع للون الأصلي
             };
 
             recognition.onresult = (event) => {
                 const text = event.results[0][0].transcript;
                 transcriptPreview.innerText = "Grave: " + text;
-                micBtn.style.animation = "none";
-
+                
                 databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                     transcript: text
                 });
             };
-            
+
             recognition.onerror = (event) => {
-                micBtn.style.animation = "none";
-                if (event.error === 'not-allowed') {
-                    alert("⚠️ اسمح للميكروفون (Settings -> Safari -> Microphone)");
-                } else {
-                    transcriptPreview.innerText = "Error: " + event.error;
-                }
+                // هنا كنحبسو الميكرو بلا ما نطلعو Alert مزعجة
+                recognition.stop();
+                transcriptPreview.innerText = "خطأ بسيط، اضغط مجدداً.";
             };
-            
-            recognition.onend = () => {
-                micBtn.style.animation = "none";
+
+            // الزر السحري (Toggle)
+            micBtn.onclick = () => {
+                if (isRecording) {
+                    recognition.stop(); // إلا كان خدام، طفيه
+                } else {
+                    try {
+                        recognition.start(); // إلا كان طافي، شعلو
+                    } catch (e) {
+                        recognition.stop(); // في حالة التبلوك، ريستارت
+                    }
+                }
             };
 
         } else {
-            transcriptPreview.innerText = "متصفحك لا يدعم الصوت";
+            transcriptPreview.innerText = "المتصفح لا يدعم الميكروفون";
         }
 
-        // 5. المصيدة (Anti-Cheat)
+        // 5. المصيدة
         function activateTrap() {
             document.addEventListener("visibilitychange", () => {
                 if (document.hidden) {
@@ -167,8 +171,7 @@
                     document.getElementById('busted-screen').classList.remove('hidden');
                     
                     databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                        cheated: true,
-                        status: 'cheated'
+                        cheated: true
                     });
                 }
             });
