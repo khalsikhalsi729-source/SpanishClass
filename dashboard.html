@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Teacher Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
+    <script src="config.js"></script>
+    <style>
+        .dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .control-panel { margin-bottom: 30px; padding: 20px; background: #161b22; border-bottom: 2px solid #238636; }
+        .transcript-box { color: #58a6ff; font-weight: bold; font-size: 1.2em; margin-top: 10px;}
+    </style>
+</head>
+<body>
+
+    <div class="control-panel">
+        <h1>SISTEMA DE CONTROL (المراقبة)</h1>
+        <button class="btn" onclick="nextTurn()" style="width: 200px; background: #1f6feb;">➡️ SIGUIENTE TURNO</button>
+        <button class="btn" onclick="resetAll()" style="width: 200px; background: #da3633;">🔄 RESET SYSTEM</button>
+    </div>
+
+    <div id="students-container" class="dashboard-grid">
+        </div>
+
+    <script>
+        let studentsData = [];
+
+        // 1. جلب ومراقبة التلاميذ
+        async function initDashboard() {
+            // جلب أولي
+            const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+            studentsData = response.documents;
+            renderStudents();
+
+            // مراقبة فورية
+            client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
+                const eventType = response.events[0];
+                const doc = response.payload;
+
+                // تحديث اللائحة المحلية
+                const index = studentsData.findIndex(s => s.$id === doc.$id);
+                if (index !== -1) {
+                    studentsData[index] = doc;
+                    renderStudents();
+                }
+            });
+        }
+        initDashboard();
+
+        // 2. رسم واجهة التلاميذ
+        function renderStudents() {
+            const container = document.getElementById('students-container');
+            container.innerHTML = '';
+
+            studentsData.forEach(s => {
+                let statusColor = '#238636'; // Online Green
+                let borderClass = '';
+                
+                if (s.cheated) { statusColor = 'red'; borderClass = 'cheater-alert'; }
+                if (s.is_turn) { borderClass = 'active-turn'; }
+
+                const osIcon = s.os_type === 'android' ? '🤖' : (s.os_type === 'ios' ? '🍎' : '❓');
+                
+                container.innerHTML += `
+                    <div class="card ${borderClass}" style="border-left: 5px solid ${statusColor}; text-align: left;">
+                        <h3>${s.name} ${osIcon}</h3>
+                        <p>Status: ${s.cheated ? '⚠️ SALIÓ' : s.status}</p>
+                        ${s.is_turn ? '<span style="color: #58a6ff;">[HABLANDO...]</span>' : ''}
+                        ${s.transcript ? `<div class="transcript-box">"${s.transcript}"</div>` : ''}
+                    </div>
+                `;
+            });
+        }
+
+        // 3. زر "الدور التالي" (عشوائي أو بالترتيب)
+        async function nextTurn() {
+            // أولا، نوقف الدور على الجميع
+            const promises = studentsData.map(s => {
+                if(s.is_turn) return databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { is_turn: false });
+            });
+            await Promise.all(promises);
+
+            // نختار واحد عشوائي (فقط من اللي Online وماشي غشاشين)
+            const eligible = studentsData.filter(s => s.status === 'online' && !s.cheated);
+            if (eligible.length > 0) {
+                const luckyStudent = eligible[Math.floor(Math.random() * eligible.length)];
+                
+                // نعطيه الدور
+                await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, luckyStudent.$id, { 
+                    is_turn: true,
+                    transcript: "" // مسح النص القديم
+                });
+            } else {
+                alert("ما كاين حتى تلميذ واجد!");
+            }
+        }
+
+        // 4. تصفير النظام
+        async function resetAll() {
+            studentsData.forEach(s => {
+                databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { 
+                    status: 'offline', 
+                    cheated: false, 
+                    is_turn: false,
+                    transcript: ""
+                });
+            });
+        }
+    </script>
+</body>
+</html>
