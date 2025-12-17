@@ -7,105 +7,225 @@
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
     <style>
-        .dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-        .control-panel { margin-bottom: 30px; padding: 20px; background: #161b22; border-bottom: 2px solid #238636; }
-        .transcript-box { color: #58a6ff; font-weight: bold; font-size: 1.2em; margin-top: 10px;}
+        .control-bar { display: flex; justify-content: space-between; background: #161b22; padding: 15px; border-bottom: 2px solid #30363d; }
+        .mode-title { color: #58a6ff; font-weight: bold; font-size: 24px; text-transform: uppercase; }
+        .turn-display { text-align: center; margin: 20px; padding: 20px; border: 2px solid #58a6ff; border-radius: 10px; display: none; }
+        .active-speaker { font-size: 3em; color: #58a6ff; animation: pulse 2s infinite; }
     </style>
 </head>
 <body>
 
-    <div class="control-panel">
-        <h1>SISTEMA DE CONTROL (المراقبة)</h1>
-        <button class="btn" onclick="nextTurn()" style="width: 200px; background: #1f6feb;">➡️ SIGUIENTE TURNO</button>
-        <button class="btn" onclick="resetAll()" style="width: 200px; background: #da3633;">🔄 RESET SYSTEM</button>
+    <div class="control-bar">
+        <div class="mode-title" id="mode-title">MODO: MONITOR</div>
+        <div>
+            <button class="btn btn-action" onclick="switchMode('monitor')">📊 Monitor</button>
+            <button class="btn btn-action" onclick="switchMode('turn')">🎤 Turnos</button>
+            <button class="btn btn-action" onclick="switchMode('group')">🧩 Grupos</button>
+            <button class="btn btn-danger" onclick="resetAll()" style="width: auto;">🔄 RESET</button>
+        </div>
     </div>
 
-    <div id="students-container" class="dashboard-grid">
+    <div id="monitor-view" class="dashboard-grid grid" style="padding: 20px;"></div>
+
+    <div id="turn-view" class="hidden">
+        <div style="text-align: center; margin-top: 50px;">
+            <button class="btn" onclick="nextTurn()" style="width: 300px; font-size: 20px; background: #1f6feb;">➡️ SIGUIENTE TURNO</button>
+            
+            <div id="active-turn-card" class="turn-display">
+                <p style="color: gray;">Hablando ahora:</p>
+                <h1 id="speaker-name" class="active-speaker">...</h1>
+                
+                <button id="reveal-btn" class="btn btn-reveal hidden" onclick="revealText()">👁️ REVEAL ANSWER</button>
+                
+                <div id="speaker-text" class="transcript-hidden" style="margin-top: 20px; font-size: 24px;"></div>
+            </div>
         </div>
+    </div>
+
+    <div id="group-view" class="hidden">
+        <div style="text-align: center; padding: 10px;">
+            <button class="btn btn-action" onclick="startGroupingAnimation()">🎬 START ANIMATION</button>
+        </div>
+        
+        <div id="grouping-canvas">
+            <div class="group-box group-1"><h3>GRUPO 1</h3></div>
+            <div class="group-box group-2"><h3>GRUPO 2</h3></div>
+            <div class="group-box group-3"><h3>GRUPO 3</h3></div>
+            </div>
+    </div>
 
     <script>
+        // تعريف المجموعات يدوياً
+        const GROUPS = {
+            "Aya Z.": 1, "Hamza": 1, "Malak": 1, "Omar": 1,
+            "Aya G.": 2, "Zakariya": 2, "Fatima zahra": 2, "Hiba": 2,
+            "Othmane": 3, "Aya B.": 3, "Marwa": 3, "Souhail": 3
+        };
+
         let studentsData = [];
+        let currentSpeakerId = null;
 
-        // 1. جلب ومراقبة التلاميذ
-        async function initDashboard() {
-            // جلب أولي
-            const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
-            studentsData = response.documents;
-            renderStudents();
+        async function init() {
+            // جلب البيانات ومراقبتها
+            const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+            studentsData = res.documents;
+            renderMonitor();
 
-            // مراقبة فورية
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
-                const eventType = response.events[0];
                 const doc = response.payload;
-
-                // تحديث اللائحة المحلية
-                const index = studentsData.findIndex(s => s.$id === doc.$id);
-                if (index !== -1) {
-                    studentsData[index] = doc;
-                    renderStudents();
+                const idx = studentsData.findIndex(s => s.$id === doc.$id);
+                if (idx !== -1) studentsData[idx] = doc;
+                
+                // تحديث الـ Monitor دائماً
+                renderMonitor();
+                
+                // تحديث الـ Turn View إذا كان هو المتحدث الحالي
+                if (currentSpeakerId === doc.$id && doc.transcript) {
+                    document.getElementById('reveal-btn').classList.remove('hidden');
+                    document.getElementById('speaker-text').innerText = `"${doc.transcript}"`;
                 }
             });
         }
-        initDashboard();
+        init();
 
-        // 2. رسم واجهة التلاميذ
-        function renderStudents() {
-            const container = document.getElementById('students-container');
+        // --- Render Functions ---
+
+        function renderMonitor() {
+            const container = document.getElementById('monitor-view');
             container.innerHTML = '';
-
             studentsData.forEach(s => {
-                let statusColor = '#238636'; // Online Green
-                let borderClass = '';
-                
-                if (s.cheated) { statusColor = 'red'; borderClass = 'cheater-alert'; }
-                if (s.is_turn) { borderClass = 'active-turn'; }
+                // فلترة: بين غير اللي مكونيكطين + اللي حصلوا (cheated)
+                if (s.status !== 'online' && !s.cheated) return;
 
-                const osIcon = s.os_type === 'android' ? '🤖' : (s.os_type === 'ios' ? '🍎' : '❓');
+                const card = document.createElement('div');
+                card.className = `card ${s.cheated ? 'cheated' : ''} ${s.is_turn ? 'speaking' : ''}`;
                 
-                container.innerHTML += `
-                    <div class="card ${borderClass}" style="border-left: 5px solid ${statusColor}; text-align: left;">
-                        <h3>${s.name} ${osIcon}</h3>
-                        <p>Status: ${s.cheated ? '⚠️ SALIÓ' : s.status}</p>
-                        ${s.is_turn ? '<span style="color: #58a6ff;">[HABLANDO...]</span>' : ''}
-                        ${s.transcript ? `<div class="transcript-box">"${s.transcript}"</div>` : ''}
-                    </div>
-                `;
+                let html = `<h3>${s.name}</h3>`;
+                if (s.cheated) html += `<h1 style="color:white;">¡TE VI!</h1>`;
+                else html += `<p>Conectado</p>`;
+                
+                card.innerHTML = html;
+                container.appendChild(card);
             });
         }
 
-        // 3. زر "الدور التالي" (عشوائي أو بالترتيب)
-        async function nextTurn() {
-            // أولا، نوقف الدور على الجميع
-            const promises = studentsData.map(s => {
-                if(s.is_turn) return databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { is_turn: false });
-            });
-            await Promise.all(promises);
+        // --- Logic: Turnos ---
 
-            // نختار واحد عشوائي (فقط من اللي Online وماشي غشاشين)
+        async function nextTurn() {
+            // 1. Reset القديم
+            if (currentSpeakerId) {
+                await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeakerId, { is_turn: false });
+            }
+            
+            // 2. إخفاء واجهة الكشف
+            document.getElementById('active-turn-card').style.display = 'block';
+            document.getElementById('reveal-btn').classList.add('hidden');
+            const textBox = document.getElementById('speaker-text');
+            textBox.innerText = "";
+            textBox.className = "transcript-hidden";
+
+            // 3. اختيار عشوائي (فقط Online وغير غشاشين)
             const eligible = studentsData.filter(s => s.status === 'online' && !s.cheated);
-            if (eligible.length > 0) {
-                const luckyStudent = eligible[Math.floor(Math.random() * eligible.length)];
+            if (eligible.length === 0) { alert("No students available!"); return; }
+            
+            const lucky = eligible[Math.floor(Math.random() * eligible.length)];
+            currentSpeakerId = lucky.$id;
+            document.getElementById('speaker-name').innerText = lucky.name;
+
+            // 4. تفعيل التلميذ
+            await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, lucky.$id, { 
+                is_turn: true,
+                transcript: "" 
+            });
+        }
+
+        function revealText() {
+            const textBox = document.getElementById('speaker-text');
+            textBox.className = "transcript-revealed";
+            // تشغيل صوت "Ta-da!" إذا أمكن
+        }
+
+        // --- Logic: Groups Animation ---
+
+        function startGroupingAnimation() {
+            const canvas = document.getElementById('grouping-canvas');
+            // تنظيف
+            document.querySelectorAll('.floating-name').forEach(e => e.remove());
+
+            const activeStudents = studentsData.filter(s => s.status === 'online' || s.cheated); // بغينا حتى اللي حصلوا يدخلو فالكروبات
+            
+            // 1. إنشاء العناصر في الوسط (الكتلة)
+            activeStudents.forEach(s => {
+                const el = document.createElement('div');
+                el.className = 'floating-name';
+                el.innerText = s.name;
+                el.dataset.name = s.name;
                 
-                // نعطيه الدور
-                await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, luckyStudent.$id, { 
-                    is_turn: true,
-                    transcript: "" // مسح النص القديم
+                // موضع عشوائي في الوسط
+                const centerX = canvas.clientWidth / 2 - 50 + (Math.random() * 100 - 50);
+                const centerY = canvas.clientHeight / 2 - 20 + (Math.random() * 100 - 50);
+                
+                el.style.left = centerX + 'px';
+                el.style.top = centerY + 'px';
+                
+                canvas.appendChild(el);
+            });
+
+            // 2. التحريك نحو الصناديق بعد مهلة قصيرة
+            setTimeout(() => {
+                document.querySelectorAll('.floating-name').forEach(el => {
+                    const name = el.dataset.name;
+                    const groupNum = GROUPS[name] || 2; // افتراضي 2 إذا مالقاش سميتو
+                    
+                    // إحداثيات الصناديق (تقريبية بالنسبة للـ canvas)
+                    let targetX, targetY;
+                    const jitterX = Math.random() * 150; // عشوائية داخل الصندوق
+                    const jitterY = Math.random() * 200;
+
+                    if (groupNum === 1) { targetX = 20 + jitterX; targetY = 60 + jitterY; } // يسار
+                    else if (groupNum === 2) { targetX = canvas.clientWidth * 0.35 + 20 + jitterX; targetY = 60 + jitterY; } // وسط
+                    else { targetX = canvas.clientWidth * 0.70 + 20 + jitterX; targetY = 60 + jitterY; } // يمين
+
+                    el.style.left = targetX + 'px';
+                    el.style.top = targetY + 'px';
+                    
+                    // تأثير التكبير عند الوصول
+                    setTimeout(() => {
+                        el.style.transform = "scale(1.2)";
+                        setTimeout(() => el.style.transform = "scale(1)", 200);
+                    }, 1500); // نفس مدة الـ transition في CSS
                 });
-            } else {
-                alert("ما كاين حتى تلميذ واجد!");
+            }, 1000); // انتظر ثانية ليرى الجمهور "الكتلة"
+        }
+
+        // --- Helpers ---
+        function switchMode(mode) {
+            document.getElementById('monitor-view').classList.add('hidden');
+            document.getElementById('turn-view').classList.add('hidden');
+            document.getElementById('group-view').classList.add('hidden');
+            
+            if (mode === 'monitor') {
+                document.getElementById('monitor-view').classList.remove('hidden');
+                document.getElementById('mode-title').innerText = "MODO: MONITOR";
+            } else if (mode === 'turn') {
+                document.getElementById('turn-view').classList.remove('hidden');
+                document.getElementById('mode-title').innerText = "MODO: TURNOS";
+            } else if (mode === 'group') {
+                document.getElementById('group-view').classList.remove('hidden');
+                document.getElementById('grouping-canvas').style.display = 'block';
+                document.getElementById('mode-title').innerText = "MODO: GRUPOS";
             }
         }
 
-        // 4. تصفير النظام
         async function resetAll() {
-            studentsData.forEach(s => {
-                databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { 
-                    status: 'offline', 
-                    cheated: false, 
-                    is_turn: false,
-                    transcript: ""
+            if(confirm("Reset complete system?")) {
+                studentsData.forEach(s => {
+                    databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { 
+                        status: 'offline', cheated: false, is_turn: false, transcript: ""
+                    });
                 });
-            });
+                location.reload();
+            }
         }
     </script>
 </body>
