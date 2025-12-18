@@ -10,7 +10,7 @@
 </head>
 <body>
     <div id="login-screen">
-        <h2 style="margin-top: 50px;">TU NOMBRE 22:</h2>
+        <h2 style="margin-top: 50px;">SELECCIONA TU NOMBRE 6</h2>
         <div id="names-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 20px;"></div>
     </div>
     
@@ -51,23 +51,18 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
-            // إرسال "أنا حاضر" للماك
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online', is_turn: false
             });
 
-            // الاستماع: واش جات نوبتي؟
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
-                
                 if (data.is_turn) {
-                    // 🔥 نوبتي! أظهر الزر 🔥
                     document.getElementById('wait-screen').classList.add('hidden');
                     document.getElementById('game-screen').classList.remove('hidden');
                     document.body.style.backgroundColor = '#0d1117';
-                    navigator.vibrate([200, 100, 200]); 
+                    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 } else {
-                    // ماشي نوبتي، رجع للانتظار
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('wait-screen').classList.remove('hidden');
                     resetMicBtn();
@@ -75,7 +70,6 @@
             });
         }
 
-        // --- التسجيل والإرسال ---
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
@@ -89,7 +83,6 @@
 
         micBtn.onclick = async () => {
             if (!isRecording) {
-                // START RECORDING
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
@@ -99,20 +92,17 @@
                     mediaRecorder.start();
                     isRecording = true;
                     micBtn.classList.add('recording');
-                    micBtn.innerText = "⏹ DETENER";
+                    micBtn.innerText = "⏹";
                     statusText.innerText = "GRABANDO...";
                 } catch (e) { alert("Error microfono"); }
             } else {
-                // STOP RECORDING
                 mediaRecorder.stop();
                 mediaRecorder.onstop = async () => {
                     const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
                     micBtn.classList.remove('recording');
                     micBtn.innerText = "⏳";
                     statusText.innerText = "ENVIANDO...";
-                    
                     await sendToAI(blob);
-                    
                     statusText.innerText = "¡ENVIADO!";
                     micBtn.innerText = "✓";
                 };
@@ -126,6 +116,8 @@
             formData.append("model", "whisper-large-v3");
             formData.append("language", "es"); 
             formData.append("temperature", "0");
+            // ✅ Prompt مصحح ليعرف المودل أن السياق هو تصريف الأفعال
+            formData.append("prompt", "El estudiante está conjugando verbos en español. Pretérito Indefinido.");
 
             try {
                 const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
@@ -135,7 +127,6 @@
                 });
                 const data = await res.json();
                 if (data.text) {
-                    // إرسال النص -> الماك غيشوفو ويخبي الزر
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                         transcript: data.text
                     });
