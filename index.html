@@ -34,19 +34,13 @@
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
-        let wakeLock = null;
+        
+        // 🕒 متغيرات المنطق الجديد
+        let lastInteraction = Date.now(); 
 
-        // ✅ 1. دالة لمنع انطفاء الشاشة (Anti-Auto-Lock)
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock active');
-                }
-            } catch (err) {
-                console.error(`${err.name}, ${err.message}`);
-            }
-        }
+        // تسجيل وقت أي لمسة
+        document.addEventListener('touchstart', () => lastInteraction = Date.now());
+        document.addEventListener('click', () => lastInteraction = Date.now()); // للاحتياط
 
         async function loadStudents() {
             try {
@@ -66,9 +60,6 @@
 
         async function login(id) {
             myDocId = id;
-            // تفعيل Wake Lock فوراً عند الدخول
-            await requestWakeLock();
-
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
@@ -155,23 +146,27 @@
             } catch (e) {}
         }
 
-        // ✅ المصيدة المعدلة: تعتمد على أن Wake Lock يمنع القفل التلقائي
+        // ✅ المصيدة الذكية (Smart Trap)
         function activateTrap() {
-            document.addEventListener("visibilitychange", async () => {
-                if (document.visibilityState === 'visible') {
-                    // إذا رجع التلميذ، نعاودو نشعلو Wake Lock احتياطياً
-                    await requestWakeLock();
-                } else {
-                    // document.hidden = true
-                    // بما أننا مفعلين Wake Lock، فالشاشة مغطفاش بوحدها.
-                    // إذن، إذا وصلنا هنا، فالمستخدم غالباً خرج من التطبيق أو دار Switch Tab.
+            document.addEventListener("visibilitychange", () => {
+                if (document.hidden) {
+                    const now = Date.now();
+                    const diff = now - lastInteraction;
                     
-                    document.getElementById('wait-screen').classList.add('hidden');
-                    document.getElementById('game-screen').classList.add('hidden');
-                    document.getElementById('busted-screen').classList.remove('hidden');
-                    databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                        cheated: true, status: 'cheated'
-                    });
+                    // إذا كان الفرق أقل من ثانية (1000ms)، يعني المستخدم تفاعل باش يخرج
+                    if (diff < 1000) {
+                        // حالة الغش: خروج نشط
+                        document.getElementById('wait-screen').classList.add('hidden');
+                        document.getElementById('game-screen').classList.add('hidden');
+                        document.getElementById('busted-screen').classList.remove('hidden');
+                        databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                            cheated: true, status: 'cheated'
+                        });
+                    } else {
+                        // حالة عادية: قفل تلقائي أو إطفاء الشاشة
+                        // ما كنديرو والو، كنخليوه Conectado
+                        console.log("Auto-lock detectado. No pasa nada.");
+                    }
                 }
             });
         }
