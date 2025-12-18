@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Estudiante</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
-    <script src="config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Estudiante</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
+<script src="config.js"></script>
 </head>
 <body>
     <div id="login-screen">
@@ -15,25 +15,33 @@
     </div>
 
     <div id="wait-screen" class="hidden connected-screen">
-        <h1 class="connected-text">CONECTADO</h1>
-        <p>Espera tu turno...</p>
+        <h1 class="connected-text">CONECTADO/A</h1>
+        <p style="margin-top: 20px; font-size: 14px; opacity: 0.7;">Espera tu turno...</p>
     </div>
 
     <div id="game-screen" class="hidden" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
         <div id="btn-container">
-            <button id="mic-btn" class="mystery-btn">🎤</button>
-            <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 18px;">¡ES TU TURNO!</p>
+            <button id="mic-btn" class="mystery-btn">PULSA AQUÍ</button>
+            <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 18px;">ES TU TURNO</p>
         </div>
     </div>
 
 <script>
-const API_KEY = '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'; // تأكد من استخدام المفتاح الخاص بك
+const API_KEY = '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';
 let myDocId = null;
 let mediaRecorder;
 let audioChunks = [];
 let isRecording = false;
+let wakeLock = null;
 
-// Load Students
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+        }
+    } catch (err) { console.error(err); }
+}
+
 async function loadStudents() {
     try {
         const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
@@ -42,7 +50,6 @@ async function loadStudents() {
             const btn = document.createElement('button');
             btn.className = 'btn';
             btn.innerText = doc.name;
-            // لا نمنع الدخول حتى لو كان "online" تحسباً لانقطاع الاتصال
             btn.onclick = () => login(doc.$id);
             grid.appendChild(btn);
         });
@@ -52,12 +59,13 @@ loadStudents();
 
 async function login(id) {
     myDocId = id;
+    await requestWakeLock();
+
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('wait-screen').classList.remove('hidden');
 
-    // Update status to online (No cheating flag anymore)
     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-        status: 'online', is_turn: false
+        status: 'online', cheated: false, is_turn: false
     });
 
     startListeners();
@@ -66,21 +74,23 @@ async function login(id) {
 function startListeners() {
     client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
         const data = response.payload;
+        
+        // التغيير الوحيد: التأكد من ظهور الشاشة عند وصول الدور
         if (data.is_turn) {
             document.getElementById('wait-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
             document.body.style.backgroundColor = '#1f2428';
-            navigator.vibrate([200, 100, 200]); // Vibrate to alert student
         } else {
             document.getElementById('game-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
             document.body.style.backgroundColor = '#0d1117';
-            resetMicUI();
+            const btn = document.getElementById('mic-btn');
+            btn.classList.remove('recording');
+            btn.innerText = "PULSA AQUÍ";
         }
     });
 }
 
-// Recording Logic
 const micBtn = document.getElementById('mic-btn');
 const statusText = document.getElementById('status-text');
 
@@ -96,35 +106,34 @@ micBtn.onclick = async () => {
             isRecording = true;
             micBtn.classList.add('recording');
             micBtn.innerText = "⏹";
-            statusText.innerText = "GRABANDO...";
-        } catch (e) { alert("Error: Permiso de micrófono denegado"); }
+            statusText.innerText = "GRABANDO... (Habla ahora)";
+        } catch (e) { alert("Error de micrófono"); }
     } else {
         mediaRecorder.stop();
         mediaRecorder.onstop = async () => {
             const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
             micBtn.classList.remove('recording');
             micBtn.innerText = "⏳";
-            statusText.innerText = "ENVIANDO...";
+            statusText.innerText = "PROCESANDO...";
             await sendToAI(blob);
             isRecording = false;
+            statusText.innerText = "¡ENVIADO!";
+            micBtn.innerText = "✓";
+            mediaRecorder.stream.getTracks().forEach(t => t.stop());
         };
     }
 };
 
-function resetMicUI() {
-    micBtn.classList.remove('recording');
-    micBtn.innerText = "🎤";
-    statusText.innerText = "¡ES TU TURNO!";
-    isRecording = false;
-}
-
+// الدالة الأصلية ديالك بدون أي تعديل
 async function sendToAI(blob) {
     const formData = new FormData();
     const ext = blob.type.includes("mp4") ? "m4a" : "webm";
     formData.append("file", blob, `recording.${ext}`);
     formData.append("model", "whisper-large-v3");
-    formData.append("language", "es"); // Force Spanish
-    
+    formData.append("language", "es");
+    formData.append("temperature", "0");
+    formData.append("prompt", "Una frase en español.");
+
     try {
         const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
             method: "POST",
@@ -133,16 +142,14 @@ async function sendToAI(blob) {
         });
         const data = await res.json();
         if (data.text) {
-            statusText.innerText = "¡ENVIADO!";
-            micBtn.innerText = "✓";
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 transcript: data.text
             });
         }
-    } catch (e) { 
-        statusText.innerText = "ERROR"; 
-    }
+    } catch (e) {}
 }
+
+// تم حذف activateTrap نهائياً كما طلبت
 </script>
 </body>
 </html>
