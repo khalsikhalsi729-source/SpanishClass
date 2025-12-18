@@ -3,25 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clase de Español</title>
+    <title>Estudiante</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
 </head>
 <body>
     <div id="login-screen">
-        <h2 style="margin-top: 50px;">SELECCIONA TU NOMBRE</h2>
+        <h2 style="margin-top: 50px;">TU NOMBRE 22:</h2>
         <div id="names-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 20px;"></div>
     </div>
     
     <div id="wait-screen" class="hidden turn-container">
         <h1 style="color: #238636; font-size: 3rem;">CONECTADO</h1>
-        <p style="opacity: 0.7;">Espera tu turno...</p>
+        <p style="opacity: 0.7;">Mira la pantalla del profesor...</p>
     </div>
 
     <div id="game-screen" class="hidden turn-container">
-        <button id="mic-btn" class="mystery-btn">PULSA</button>
-        <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 1.5rem;">ES TU TURNO</p>
+        <button id="mic-btn" class="mystery-btn">PULSA PARA HABLAR</button>
+        <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 1.5rem;">¡ES TU TURNO!</p>
     </div>
 
     <script>
@@ -32,20 +32,17 @@
         let isRecording = false;
 
         async function loadStudents() {
-            try {
-                const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
-                const grid = document.getElementById('names-grid');
-                res.documents.forEach(doc => {
-                    const btn = document.createElement('button');
-                    btn.className = 'btn btn-blue';
-                    btn.innerText = doc.name;
-                    btn.style.padding = "20px";
-                    // الزر كيتسد إلا كان التلميذ ديجا أونلاين
-                    if(doc.status === 'online') btn.disabled = true;
-                    btn.onclick = () => login(doc.$id);
-                    grid.appendChild(btn);
-                });
-            } catch (e) {}
+            const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+            const grid = document.getElementById('names-grid');
+            res.documents.forEach(doc => {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-blue';
+                btn.innerText = doc.name;
+                btn.style.padding = "20px";
+                if(doc.status === 'online') btn.disabled = true;
+                btn.onclick = () => login(doc.$id);
+                grid.appendChild(btn);
+            });
         }
         loadStudents();
 
@@ -54,23 +51,23 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
-            // ✅ الخطوة 1: كنقولو للسيستيم "أنا حاضر" (status: online)
+            // إرسال "أنا حاضر" للماك
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online', is_turn: false
             });
 
-            // ✅ الخطوة 2: كنتسناو النوبة (Realtime Listener)
+            // الاستماع: واش جات نوبتي؟
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
                 
-                // إلا ولات is_turn = true (يعني العجلة اختارتني)
                 if (data.is_turn) {
+                    // 🔥 نوبتي! أظهر الزر 🔥
                     document.getElementById('wait-screen').classList.add('hidden');
-                    document.getElementById('game-screen').classList.remove('hidden'); // 🔥 هنا كيبان الزر
+                    document.getElementById('game-screen').classList.remove('hidden');
                     document.body.style.backgroundColor = '#0d1117';
-                    if(navigator.vibrate) navigator.vibrate(200); // فيبراسيون باش يعيق
+                    navigator.vibrate([200, 100, 200]); 
                 } else {
-                    // إلا سالا دوري
+                    // ماشي نوبتي، رجع للانتظار
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('wait-screen').classList.remove('hidden');
                     resetMicBtn();
@@ -78,7 +75,7 @@
             });
         }
 
-        // --- AUDIO ---
+        // --- التسجيل والإرسال ---
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
@@ -86,12 +83,13 @@
             micBtn.classList.remove('recording');
             micBtn.innerText = "PULSA";
             micBtn.style.background = "radial-gradient(circle, #1f6feb 0%, #0d1117 100%)";
-            statusText.innerText = "ES TU TURNO";
+            statusText.innerText = "¡ES TU TURNO!";
             isRecording = false;
         }
 
         micBtn.onclick = async () => {
             if (!isRecording) {
+                // START RECORDING
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
@@ -101,17 +99,20 @@
                     mediaRecorder.start();
                     isRecording = true;
                     micBtn.classList.add('recording');
-                    micBtn.innerText = "⏹";
+                    micBtn.innerText = "⏹ DETENER";
                     statusText.innerText = "GRABANDO...";
-                } catch (e) { alert("Microphone blocked"); }
+                } catch (e) { alert("Error microfono"); }
             } else {
+                // STOP RECORDING
                 mediaRecorder.stop();
                 mediaRecorder.onstop = async () => {
                     const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
                     micBtn.classList.remove('recording');
                     micBtn.innerText = "⏳";
                     statusText.innerText = "ENVIANDO...";
+                    
                     await sendToAI(blob);
+                    
                     statusText.innerText = "¡ENVIADO!";
                     micBtn.innerText = "✓";
                 };
@@ -134,7 +135,7 @@
                 });
                 const data = await res.json();
                 if (data.text) {
-                    // كنصيفطو النص للداتابيز، والداشبورد غيشدو ويديرو فالهيستوري
+                    // إرسال النص -> الماك غيشوفو ويخبي الزر
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                         transcript: data.text
                     });

@@ -2,81 +2,50 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Panel de Control</title>
+    <title>Control - Ruleta</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
     <style>
-        .history-badge-alert {
-            position: absolute; top: -5px; right: -5px;
-            background: red; color: white; border-radius: 50%;
-            width: 20px; height: 20px; font-size: 12px;
-            display: flex; align-items: center; justify-content: center;
-            animation: pulse 1s infinite;
-        }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0d1117; }
+        /* تصميم بسيط جداً: زر وعجلة فقط */
+        .roulette-container { text-align: center; width: 100%; max-width: 800px; }
+        .roulette-text { font-size: 5rem; font-weight: 900; color: #58a6ff; min-height: 120px; text-shadow: 0 0 30px rgba(88,166,255,0.4); margin: 30px 0; }
+        .btn-spin { font-size: 2rem; padding: 20px 60px; border-radius: 50px; background: #1f6feb; border: none; color: white; cursor: pointer; box-shadow: 0 10px 40px rgba(31,111,235,0.4); transition: transform 0.2s; }
+        .btn-spin:active { transform: scale(0.95); }
+        .btn-spin:disabled { background: #30363d; cursor: not-allowed; box-shadow: none; }
+        
+        .history-btn { position: absolute; top: 20px; right: 20px; background: #d29922; border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .reset-btn { position: absolute; top: 20px; left: 20px; background: #da3633; border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        
+        /* Modal Historial */
+        #history-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70%; height: 80%; background: #161b22; border: 2px solid #d29922; border-radius: 12px; z-index: 2000; padding: 20px; overflow-y: auto; box-shadow: 0 0 100px black; text-align: left; }
+        .history-item { background: #0d1117; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #30363d; }
     </style>
 </head>
 <body>
 
-    <div style="background: #161b22; padding: 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center;">
-        <h2 id="mode-title" style="margin: 0; color: #58a6ff;">MODO: RULETA</h2>
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <button class="btn btn-blue" onclick="switchMode('turn')">🎰 RULETA</button>
-            <button class="btn btn-gold" onclick="switchMode('group')">🧩 GRUPOS</button>
-            
-            <div style="position: relative;">
-                <button class="btn" style="background-color: #d29922; border: 2px solid #fff;" onclick="toggleHistory()">
-                    📜 HISTORIAL
-                </button>
-                <div id="history-alert" class="history-badge-alert hidden">!</div>
-            </div>
+    <button class="reset-btn" onclick="resetAll()">🔄 RESET</button>
+    <button class="history-btn" onclick="toggleHistory()">📜 HISTORIAL</button>
 
-            <button class="btn btn-danger" onclick="resetAll()">🔄 RESET</button>
-        </div>
-    </div>
-
-    <div id="history-modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70%; max-height: 80vh; background: #161b22; border: 2px solid #d29922; border-radius: 12px; z-index: 2000; padding: 20px; overflow-y: auto; box-shadow: 0 0 100px rgba(0,0,0,0.8);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #30363d; padding-bottom: 10px;">
-            <h2 style="color: #d29922; margin: 0;">HISTORIAL DE RESPUESTAS</h2>
-            <button onclick="toggleHistory()" style="background: transparent; border: none; color: white; font-size: 20px; cursor: pointer;">✕</button>
-        </div>
-        <div id="full-history-list">
-            <p style="text-align: center; color: gray;">Esperando respuestas...</p>
-        </div>
-    </div>
-
-    <div id="turn-view" class="turn-container">
-        <button id="next-btn" class="btn btn-blue" onclick="startRoulette()" style="font-size: 28px; padding: 20px 50px; border-radius: 50px; box-shadow: 0 10px 30px rgba(31, 111, 235, 0.3);">
-            🎲 GIRAR RULETA
-        </button>
-
-        <div id="roulette-display" class="roulette-box hidden">...</div>
-
-        <div id="status-badge" class="status-badge hidden" style="margin-top: 30px; font-size: 1.2rem;"></div>
+    <div class="roulette-container">
+        <h1 style="color: gray; font-size: 1.5rem; text-transform: uppercase; letter-spacing: 2px;">Elige un estudiante</h1>
         
-        <p id="instruction-hint" class="hidden" style="color: gray; margin-top: 20px; font-style: italic;">
-            (La respuesta se guardará automáticamente en el Historial)
-        </p>
+        <div id="roulette-display" class="roulette-text">...</div>
+        
+        <button id="spin-btn" class="btn-spin" onclick="startRoulette()">🎲 GIRAR 4444</button>
+        
+        <div id="status-msg" style="margin-top: 30px; color: #238636; font-size: 1.5rem; display: none;">
+            📢 Esperando audio del estudiante...
+        </div>
     </div>
 
-    <div id="group-view" class="hidden">
-        <div style="text-align: center; padding: 20px;">
-            <button class="btn btn-action" onclick="organizeGroups()">⭐ DISTRIBUIR GRUPOS</button>
+    <div id="history-modal">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+            <h2 style="color: #d29922; margin: 0;">HISTORIAL</h2>
+            <button onclick="toggleHistory()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">✕</button>
         </div>
-        <div id="grouping-canvas">
-            <div class="group-column group-1">
-                <h3 style="color: #d2a8ff;">GRUPO 1</h3>
-                <div id="g1-container" style="width: 100%; position: relative; flex-grow: 1;"></div>
-            </div>
-            <div class="group-column group-2">
-                <h3 style="color: #79c0ff;">GRUPO 2</h3>
-                <div id="g2-container" style="width: 100%; position: relative; flex-grow: 1;"></div>
-            </div>
-            <div class="group-column group-3">
-                <h3 style="color: #56d364;">GRUPO 3</h3>
-                <div id="g3-container" style="width: 100%; position: relative; flex-grow: 1;"></div>
-            </div>
-        </div>
+        <div id="history-list"></div>
     </div>
 
     <script>
@@ -92,6 +61,7 @@
         let lastGroupID = -1;
         let historyLog = [];
 
+        // 1. جلب البيانات ومراقبة الصوت القادم
         async function init() {
             const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
             studentsData = res.documents;
@@ -101,60 +71,49 @@
                 const idx = studentsData.findIndex(s => s.$id === doc.$id);
                 if (idx !== -1) studentsData[idx] = doc;
                 
-                // منطق وصول الصوت (بدون تكرار)
+                // ✅ اللحظة التي يصل فيها الصوت من التلميذ
                 if (currentSpeaker && currentSpeaker.$id === doc.$id && doc.transcript && doc.transcript.length > 0) {
                     
-                    const lastEntry = historyLog[0];
-                    if (lastEntry && lastEntry.text === doc.transcript && lastEntry.name === doc.name) {
-                        return;
-                    }
+                    // منع التكرار
+                    if (historyLog.length > 0 && historyLog[0].text === doc.transcript && historyLog[0].name === doc.name) return;
 
-                    const badge = document.getElementById('status-badge');
-                    badge.className = "status-badge status-ready";
-                    badge.innerText = "¡AUDIO RECIBIDO! (Ver Historial)";
-                    badge.style.background = "#238636";
+                    // 1. حفظ في الهيستوري
+                    addToHistory(doc);
                     
-                    addToHistoryLog(doc);
-                    document.getElementById('history-alert').classList.remove('hidden');
+                    // 2. إخفاء رسالة الانتظار وتفعيل الزر مرة أخرى
+                    document.getElementById('status-msg').style.display = 'none';
+                    document.getElementById('spin-btn').disabled = false;
+                    document.getElementById('spin-btn').innerText = "🎲 GIRAR";
 
+                    // 3. إنهاء دور التلميذ (إخفاء الزر من هاتفه)
                     databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeaker.$id, {
                         is_turn: false
                     });
-
-                    document.getElementById('next-btn').disabled = false;
                 }
             });
         }
         init();
 
-        // --- 1. ROULETTE LOGIC ---
+        // 2. منطق العجلة (فقط المتصلين)
         async function startRoulette() {
-            // تنظيف
-            const badge = document.getElementById('status-badge');
-            badge.classList.add('hidden');
-            badge.className = "status-badge";
-            document.getElementById('instruction-hint').classList.add('hidden');
+            const statusMsg = document.getElementById('status-msg');
+            statusMsg.style.display = 'none';
             
-            // ✅ الفلتر الصارم: نختار فقط التلاميذ اللي عندهم status === 'online'
-            // يعني اللي ديجا دخلو وكليكاو على سمياتهم فالهواتف
-            let candidates = studentsData.filter(s => 
-                s.status === 'online' && 
-                !playedIDs.has(s.$id)
-            );
-
-            // إعادة التدوير: إلا كلشي شارك، نعودو من جديد (ولكن دائماً من بين المتصلين فقط)
+            // فلتر: المتصلين فقط (online)
+            let candidates = studentsData.filter(s => s.status === 'online' && !playedIDs.has(s.$id));
+            
+            // إعادة التدوير
             if (candidates.length === 0) {
                 playedIDs.clear();
                 candidates = studentsData.filter(s => s.status === 'online');
             }
 
-            // إلا مكاين حتى واحد أونلاين، حبس
             if (candidates.length === 0) { 
-                alert("¡No hay alumnos conectados! (Deben entrar y pulsar su nombre primero)"); 
+                alert("¡No hay nadie conectado! (Los alumnos deben entrar primero)"); 
                 return; 
             }
 
-            // تجنب تكرار المجموعة
+            // تجنب نفس المجموعة
             let bestCandidates = candidates.filter(s => GROUPS[s.name] !== lastGroupID);
             let finalPool = bestCandidates.length > 0 ? bestCandidates : candidates;
 
@@ -164,37 +123,29 @@
             lastGroupID = GROUPS[winner.name];
             playedIDs.add(winner.$id);
 
-            // الانيميشن
+            // تشغيل العجلة
             const display = document.getElementById('roulette-display');
-            display.classList.remove('hidden');
-            document.getElementById('next-btn').disabled = true;
+            const btn = document.getElementById('spin-btn');
+            btn.disabled = true;
 
             let steps = 0;
             const interval = setInterval(async () => {
-                // العرض العشوائي كيدور حتى هو غير فالناس اللي أونلاين
-                const onlineStudents = studentsData.filter(s => s.status === 'online');
-                const randomName = onlineStudents.length > 0 
-                    ? onlineStudents[Math.floor(Math.random() * onlineStudents.length)].name 
-                    : winner.name;
-                
-                display.innerText = randomName;
+                // عرض أسماء عشوائية من المتصلين
+                const onlineNames = studentsData.filter(s => s.status === 'online').map(s => s.name);
+                display.innerText = onlineNames[Math.floor(Math.random() * onlineNames.length)];
                 steps++;
 
                 if (steps >= 20) {
                     clearInterval(interval);
+                    
+                    // التوقف عند الفائز
                     display.innerText = winner.name;
                     display.style.color = "#d29922";
-                    display.style.transform = "scale(1.3)";
                     
-                    badge.innerText = "ESPERANDO AUDIO...";
-                    badge.classList.remove('hidden');
-                    badge.classList.add('status-waiting');
-                    badge.style.background = "#9e6a03";
+                    // إظهار رسالة انتظار
+                    statusMsg.style.display = 'block';
                     
-                    document.getElementById('instruction-hint').classList.remove('hidden');
-
-                    // 🔥🔥 الأهم: تفعيل الدور لهذا الطالب بالتحديد 🔥🔥
-                    // هادشي اللي غيخلي الزر يبان عندو فالهاتف
+                    // 🔥🔥 إرسال الأمر لهاتف التلميذ 🔥🔥
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, winner.$id, {
                         is_turn: true,
                         transcript: "" 
@@ -203,91 +154,25 @@
             }, 80);
         }
 
-        // --- 2. HISTORIAL ---
-        function addToHistoryLog(student) {
-            const entry = { 
-                name: student.name, 
-                text: student.transcript, 
-                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-            };
+        function addToHistory(doc) {
+            const entry = { name: doc.name, text: doc.transcript, time: new Date().toLocaleTimeString() };
             historyLog.unshift(entry);
-            renderHistoryLog();
-        }
-
-        function renderHistoryLog() {
-            const list = document.getElementById('full-history-list');
-            list.innerHTML = "";
-            if (historyLog.length === 0) {
-                list.innerHTML = '<p style="text-align: center; color: gray;">Esperando respuestas...</p>';
-                return;
-            }
-            historyLog.forEach(item => {
-                const div = document.createElement('div');
-                div.style.background = "#0d1117";
-                div.style.border = "1px solid #30363d";
-                div.style.borderRadius = "8px";
-                div.style.padding = "15px";
-                div.style.marginBottom = "10px";
-                div.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="color: #58a6ff; font-weight: bold; font-size: 1.1em;">${item.name}</span>
-                        <span style="color: gray; font-size: 0.8em;">${item.time}</span>
-                    </div>
-                    <div style="color: #e6edf3; font-size: 1.2em;">"${item.text}"</div>
-                `;
-                list.appendChild(div);
-            });
+            
+            const list = document.getElementById('history-list');
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.innerHTML = `<strong style="color:#58a6ff">${entry.name}</strong> <span style="float:right; color:gray">${entry.time}</span><br><div style="margin-top:5px; font-size:1.2rem;">"${entry.text}"</div>`;
+            list.prepend(div);
         }
 
         function toggleHistory() {
             const modal = document.getElementById('history-modal');
-            if (modal.style.display === 'block') {
-                modal.style.display = 'none';
-            } else {
-                modal.style.display = 'block';
-                document.getElementById('history-alert').classList.add('hidden');
-            }
-        }
-
-        // --- 3. GROUPS ---
-        function organizeGroups() {
-            document.querySelectorAll('.student-chip').forEach(e => e.remove());
-            const activeStudents = studentsData.filter(s => s.status === 'online'); // فقط الأونلاين
-            
-            activeStudents.forEach((s, index) => {
-                const grp = GROUPS[s.name] || 2;
-                const chip = document.createElement('div');
-                chip.className = 'student-chip';
-                chip.innerText = s.name;
-                chip.style.left = "50%"; chip.style.top = "50%"; chip.style.transform = "translate(-50%, -50%) scale(0)";
-                document.getElementById('grouping-canvas').appendChild(chip);
-
-                setTimeout(() => {
-                    chip.style.position = "relative";
-                    chip.style.left = "auto"; chip.style.top = "auto";
-                    chip.style.transform = "scale(1)"; chip.style.margin = "5px 0";
-                    document.getElementById(`g${grp}-container`).appendChild(chip);
-                }, 100 + (index * 100));
-            });
-        }
-
-        function switchMode(mode) {
-            document.getElementById('turn-view').classList.add('hidden');
-            document.getElementById('group-view').classList.add('hidden');
-            
-            if(mode === 'turn') { 
-                document.getElementById('turn-view').classList.remove('hidden'); 
-                document.getElementById('mode-title').innerText = "MODO: RULETA"; 
-            } else if(mode === 'group') { 
-                document.getElementById('group-view').classList.remove('hidden'); 
-                document.getElementById('grouping-canvas').style.display = 'block'; 
-                document.getElementById('mode-title').innerText = "MODO: GRUPOS"; 
-            }
+            modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
         }
 
         async function resetAll() {
-            if(confirm("¿Estás seguro de reiniciar todo?")) {
-                studentsData.forEach(s => databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { status: 'offline', cheated: false, is_turn: false, transcript: "" }));
+            if(confirm("RESET?")) {
+                studentsData.forEach(s => databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { status: 'offline', is_turn: false, transcript: "" }));
                 location.reload();
             }
         }
