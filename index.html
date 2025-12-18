@@ -9,15 +9,14 @@
     <script src="config.js"></script>
 </head>
 <body>
-
     <div id="login-screen">
         <h2 style="margin-top: 50px;">SELECCIONA TU NOMBRE</h2>
         <div id="names-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 20px;"></div>
     </div>
-
+    
     <div id="wait-screen" class="hidden turn-container">
         <h1 style="color: #238636; font-size: 3rem;">CONECTADO</h1>
-        <p style="opacity: 0.7;">No salgas de esta pantalla...</p>
+        <p style="opacity: 0.7;">Espera tu turno...</p>
     </div>
 
     <div id="game-screen" class="hidden turn-container">
@@ -37,11 +36,11 @@
         let audioChunks = [];
         let isRecording = false;
 
-        // 🛡️ ANTI-CHEAT LOGIC 🛡️
+        // 🛡️ ANTI-CHEAT: LOGIC OF "THE FINGER" 🛡️
         let lastTouchTime = Date.now();
 
-        // نسجل وقت أي لمسة للشاشة
-        ['touchstart', 'click', 'scroll', 'mousemove'].forEach(evt => {
+        // أي لمسة للشاشة، نسجل وقتها
+        ['touchstart', 'click', 'scroll', 'mousedown'].forEach(evt => {
             document.addEventListener(evt, () => {
                 lastTouchTime = Date.now();
             }, { passive: true });
@@ -50,18 +49,18 @@
         document.addEventListener("visibilitychange", () => {
             if (document.hidden && myDocId) {
                 const now = Date.now();
-                const timeDiff = now - lastTouchTime;
+                const diff = now - lastTouchTime;
 
-                // المنطق:
-                // إذا كان الفرق أقل من 2 ثانية، فهذا يعني أن المستخدم لمس الشاشة ليخرج (Swipe/Home).
-                // إذا كان الفرق كبيراً، فهذا يعني أنه لم يلمس الشاشة، والجهاز انطفأ وحده (Auto-lock).
+                // ⚠️ القاعدة الذهبية:
+                // إذا كان الفرق صغيراً (أقل من ثانية)، فهذا يعني أنك استخدمت إصبعك للخروج (Swipe/Home) = غش.
+                // إذا كان الفرق كبيراً، فهذا يعني أنك لم تلمس الشاشة مؤخراً، والهاتف انطفأ لوحده = آمن.
                 
-                if (timeDiff < 2000) { 
-                    // CHEATED!
+                if (diff < 1000) {
+                    // CHEATED (Tab Switch / Home Btn)
                     iCaughtYou();
                 } else {
-                    // SAFE (Auto-lock)
-                    console.log("Auto-lock detectado. Ignorando...");
+                    // SAFE (Auto-Lock / Power Btn)
+                    console.log("Auto-lock detectado. Seguro.");
                 }
             }
         });
@@ -87,7 +86,6 @@
                     btn.className = 'btn btn-blue';
                     btn.innerText = doc.name;
                     btn.style.padding = "20px";
-                    btn.style.fontSize = "18px";
                     if(doc.status === 'online') btn.disabled = true;
                     btn.onclick = () => login(doc.$id);
                     grid.appendChild(btn);
@@ -98,10 +96,7 @@
 
         async function login(id) {
             myDocId = id;
-            
-            // محاولة تفعيل WakeLock
             try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
-
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
@@ -109,14 +104,13 @@
                 status: 'online', cheated: false, is_turn: false
             });
 
-            // الاستماع للأوامر
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
                 if (data.is_turn) {
                     document.getElementById('wait-screen').classList.add('hidden');
                     document.getElementById('game-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#0d1117'; // Darker
-                    navigator.vibrate([200, 100, 200]); // اهتزاز للتنبيه
+                    document.body.style.backgroundColor = '#0d1117';
+                    navigator.vibrate(200);
                 } else {
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('wait-screen').classList.remove('hidden');
@@ -125,7 +119,7 @@
             });
         }
 
-        // --- AUDIO LOGIC ---
+        // --- AUDIO ---
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
@@ -147,11 +141,10 @@
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.start();
                     isRecording = true;
-                    
                     micBtn.classList.add('recording');
                     micBtn.innerText = "⏹";
                     statusText.innerText = "GRABANDO...";
-                } catch (e) { alert("Permiso de micrófono denegado"); }
+                } catch (e) { alert("Microphone blocked"); }
             } else {
                 mediaRecorder.stop();
                 mediaRecorder.onstop = async () => {
@@ -159,9 +152,7 @@
                     micBtn.classList.remove('recording');
                     micBtn.innerText = "⏳";
                     statusText.innerText = "ENVIANDO...";
-                    
                     await sendToAI(blob);
-                    
                     statusText.innerText = "¡ENVIADO!";
                     micBtn.innerText = "✓";
                 };
