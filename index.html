@@ -9,23 +9,25 @@
     <script src="config.js"></script>
 </head>
 <body>
+
     <div id="login-screen">
-        <h2>SELECCIONA TU NOMBRE</h2>
-        <div id="names-grid" class="grid"></div>
+        <h2 style="margin-top: 50px;">SELECCIONA TU NOMBRE</h2>
+        <div id="names-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 20px;"></div>
     </div>
-    <div id="wait-screen" class="hidden connected-screen">
-        <h1 class="connected-text">CONECTADO/A</h1>
-        <p style="margin-top: 20px; font-size: 14px; opacity: 0.7;">Espera tu turno...</p>
+
+    <div id="wait-screen" class="hidden turn-container">
+        <h1 style="color: #238636; font-size: 3rem;">CONECTADO</h1>
+        <p style="opacity: 0.7;">No salgas de esta pantalla...</p>
     </div>
-    <div id="game-screen" class="hidden" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
-        <div id="btn-container">
-            <button id="mic-btn" class="mystery-btn">PULSA AQUÍ</button>
-            <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 18px;">ES TU TURNO</p>
-        </div>
+
+    <div id="game-screen" class="hidden turn-container">
+        <button id="mic-btn" class="mystery-btn">PULSA</button>
+        <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 1.5rem;">ES TU TURNO</p>
     </div>
-    <div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-        <h1 style="font-size: 60px;">¡TE VI! 😡</h1>
-        <p style="font-size: 24px;">Has salido de la aplicación.</p>
+
+    <div id="busted-screen" class="hidden turn-container" style="background: #440a0a;">
+        <h1 style="font-size: 4rem;">¡TE VI! 😡</h1>
+        <p>Has salido de la aplicación.</p>
     </div>
 
     <script>
@@ -34,32 +36,72 @@
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
-        
-        // 🕒 متغيرات المنطق الجديد
-        let lastInteraction = Date.now(); 
 
-        // تسجيل وقت أي لمسة
-        document.addEventListener('touchstart', () => lastInteraction = Date.now());
-        document.addEventListener('click', () => lastInteraction = Date.now()); // للاحتياط
+        // 🛡️ ANTI-CHEAT LOGIC 🛡️
+        let lastTouchTime = Date.now();
+
+        // نسجل وقت أي لمسة للشاشة
+        ['touchstart', 'click', 'scroll', 'mousemove'].forEach(evt => {
+            document.addEventListener(evt, () => {
+                lastTouchTime = Date.now();
+            }, { passive: true });
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden && myDocId) {
+                const now = Date.now();
+                const timeDiff = now - lastTouchTime;
+
+                // المنطق:
+                // إذا كان الفرق أقل من 2 ثانية، فهذا يعني أن المستخدم لمس الشاشة ليخرج (Swipe/Home).
+                // إذا كان الفرق كبيراً، فهذا يعني أنه لم يلمس الشاشة، والجهاز انطفأ وحده (Auto-lock).
+                
+                if (timeDiff < 2000) { 
+                    // CHEATED!
+                    iCaughtYou();
+                } else {
+                    // SAFE (Auto-lock)
+                    console.log("Auto-lock detectado. Ignorando...");
+                }
+            }
+        });
+
+        function iCaughtYou() {
+            document.getElementById('wait-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('busted-screen').classList.remove('hidden');
+            
+            databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                cheated: true,
+                status: 'cheated'
+            });
+        }
+        // ------------------------
 
         async function loadStudents() {
             try {
-                const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+                const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
                 const grid = document.getElementById('names-grid');
-                response.documents.forEach(doc => {
+                res.documents.forEach(doc => {
                     const btn = document.createElement('button');
-                    btn.className = 'btn';
+                    btn.className = 'btn btn-blue';
                     btn.innerText = doc.name;
+                    btn.style.padding = "20px";
+                    btn.style.fontSize = "18px";
                     if(doc.status === 'online') btn.disabled = true;
                     btn.onclick = () => login(doc.$id);
                     grid.appendChild(btn);
                 });
-            } catch (e) { console.error(e); }
+            } catch (e) {}
         }
         loadStudents();
 
         async function login(id) {
             myDocId = id;
+            
+            // محاولة تفعيل WakeLock
+            try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
+
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
@@ -67,30 +109,33 @@
                 status: 'online', cheated: false, is_turn: false
             });
 
-            startListeners();
-            activateTrap();
-        }
-
-        function startListeners() {
+            // الاستماع للأوامر
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
                 if (data.is_turn) {
                     document.getElementById('wait-screen').classList.add('hidden');
                     document.getElementById('game-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#1f2428';
+                    document.body.style.backgroundColor = '#0d1117'; // Darker
+                    navigator.vibrate([200, 100, 200]); // اهتزاز للتنبيه
                 } else {
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('wait-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#0d1117';
-                    const btn = document.getElementById('mic-btn');
-                    btn.classList.remove('recording');
-                    btn.innerText = "PULSA AQUÍ";
+                    resetMicBtn();
                 }
             });
         }
 
+        // --- AUDIO LOGIC ---
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
+
+        function resetMicBtn() {
+            micBtn.classList.remove('recording');
+            micBtn.innerText = "PULSA";
+            micBtn.style.background = "radial-gradient(circle, #1f6feb 0%, #0d1117 100%)";
+            statusText.innerText = "ES TU TURNO";
+            isRecording = false;
+        }
 
         micBtn.onclick = async () => {
             if (!isRecording) {
@@ -102,22 +147,23 @@
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.start();
                     isRecording = true;
+                    
                     micBtn.classList.add('recording');
                     micBtn.innerText = "⏹";
-                    statusText.innerText = "GRABANDO... (Habla ahora)";
-                } catch (e) { alert("Error de micrófono"); }
+                    statusText.innerText = "GRABANDO...";
+                } catch (e) { alert("Permiso de micrófono denegado"); }
             } else {
                 mediaRecorder.stop();
                 mediaRecorder.onstop = async () => {
                     const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
                     micBtn.classList.remove('recording');
                     micBtn.innerText = "⏳";
-                    statusText.innerText = "PROCESANDO...";
+                    statusText.innerText = "ENVIANDO...";
+                    
                     await sendToAI(blob);
-                    isRecording = false;
+                    
                     statusText.innerText = "¡ENVIADO!";
                     micBtn.innerText = "✓";
-                    mediaRecorder.stream.getTracks().forEach(t => t.stop());
                 };
             }
         };
@@ -129,7 +175,6 @@
             formData.append("model", "whisper-large-v3");
             formData.append("language", "es"); 
             formData.append("temperature", "0");
-            formData.append("prompt", "Una frase en español.");
 
             try {
                 const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
@@ -144,31 +189,6 @@
                     });
                 }
             } catch (e) {}
-        }
-
-        // ✅ المصيدة الذكية (Smart Trap)
-        function activateTrap() {
-            document.addEventListener("visibilitychange", () => {
-                if (document.hidden) {
-                    const now = Date.now();
-                    const diff = now - lastInteraction;
-                    
-                    // إذا كان الفرق أقل من ثانية (1000ms)، يعني المستخدم تفاعل باش يخرج
-                    if (diff < 1000) {
-                        // حالة الغش: خروج نشط
-                        document.getElementById('wait-screen').classList.add('hidden');
-                        document.getElementById('game-screen').classList.add('hidden');
-                        document.getElementById('busted-screen').classList.remove('hidden');
-                        databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                            cheated: true, status: 'cheated'
-                        });
-                    } else {
-                        // حالة عادية: قفل تلقائي أو إطفاء الشاشة
-                        // ما كنديرو والو، كنخليوه Conectado
-                        console.log("Auto-lock detectado. No pasa nada.");
-                    }
-                }
-            });
         }
     </script>
 </body>
