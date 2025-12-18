@@ -40,6 +40,7 @@
                     btn.className = 'btn btn-blue';
                     btn.innerText = doc.name;
                     btn.style.padding = "20px";
+                    // الزر كيتسد إلا كان التلميذ ديجا أونلاين
                     if(doc.status === 'online') btn.disabled = true;
                     btn.onclick = () => login(doc.$id);
                     grid.appendChild(btn);
@@ -53,20 +54,23 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
-            // تسجيل الدخول فقط
+            // ✅ الخطوة 1: كنقولو للسيستيم "أنا حاضر" (status: online)
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online', is_turn: false
             });
 
-            // الاستماع للدور
+            // ✅ الخطوة 2: كنتسناو النوبة (Realtime Listener)
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
+                
+                // إلا ولات is_turn = true (يعني العجلة اختارتني)
                 if (data.is_turn) {
                     document.getElementById('wait-screen').classList.add('hidden');
-                    document.getElementById('game-screen').classList.remove('hidden');
+                    document.getElementById('game-screen').classList.remove('hidden'); // 🔥 هنا كيبان الزر
                     document.body.style.backgroundColor = '#0d1117';
-                    navigator.vibrate(200);
+                    if(navigator.vibrate) navigator.vibrate(200); // فيبراسيون باش يعيق
                 } else {
+                    // إلا سالا دوري
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('wait-screen').classList.remove('hidden');
                     resetMicBtn();
@@ -130,6 +134,7 @@
                 });
                 const data = await res.json();
                 if (data.text) {
+                    // كنصيفطو النص للداتابيز، والداشبورد غيشدو ويديرو فالهيستوري
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                         transcript: data.text
                     });

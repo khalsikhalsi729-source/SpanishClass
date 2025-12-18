@@ -101,7 +101,7 @@
                 const idx = studentsData.findIndex(s => s.$id === doc.$id);
                 if (idx !== -1) studentsData[idx] = doc;
                 
-                // ✅ منطق وصول الصوت (بدون تكرار)
+                // منطق وصول الصوت (بدون تكرار)
                 if (currentSpeaker && currentSpeaker.$id === doc.$id && doc.transcript && doc.transcript.length > 0) {
                     
                     const lastEntry = historyLog[0];
@@ -127,42 +127,51 @@
         }
         init();
 
-        // --- 1. ROULETTE ---
+        // --- 1. ROULETTE LOGIC ---
         async function startRoulette() {
+            // تنظيف
             const badge = document.getElementById('status-badge');
             badge.classList.add('hidden');
             badge.className = "status-badge";
             document.getElementById('instruction-hint').classList.add('hidden');
             
-            // ✅ الفلتر: فقط المتصلين
+            // ✅ الفلتر الصارم: نختار فقط التلاميذ اللي عندهم status === 'online'
+            // يعني اللي ديجا دخلو وكليكاو على سمياتهم فالهواتف
             let candidates = studentsData.filter(s => 
                 s.status === 'online' && 
                 !playedIDs.has(s.$id)
             );
 
+            // إعادة التدوير: إلا كلشي شارك، نعودو من جديد (ولكن دائماً من بين المتصلين فقط)
             if (candidates.length === 0) {
-                // إعادة التدوير ولكن فقط للمتصلين
                 playedIDs.clear();
                 candidates = studentsData.filter(s => s.status === 'online');
             }
 
-            if (candidates.length === 0) { alert("¡No hay alumnos conectados!"); return; }
+            // إلا مكاين حتى واحد أونلاين، حبس
+            if (candidates.length === 0) { 
+                alert("¡No hay alumnos conectados! (Deben entrar y pulsar su nombre primero)"); 
+                return; 
+            }
 
+            // تجنب تكرار المجموعة
             let bestCandidates = candidates.filter(s => GROUPS[s.name] !== lastGroupID);
             let finalPool = bestCandidates.length > 0 ? bestCandidates : candidates;
 
+            // اختيار الفائز
             const winner = finalPool[Math.floor(Math.random() * finalPool.length)];
             currentSpeaker = winner;
             lastGroupID = GROUPS[winner.name];
             playedIDs.add(winner.$id);
 
+            // الانيميشن
             const display = document.getElementById('roulette-display');
             display.classList.remove('hidden');
             document.getElementById('next-btn').disabled = true;
 
             let steps = 0;
             const interval = setInterval(async () => {
-                // نختار اسم عشوائي من "الحضور فقط" للعرض
+                // العرض العشوائي كيدور حتى هو غير فالناس اللي أونلاين
                 const onlineStudents = studentsData.filter(s => s.status === 'online');
                 const randomName = onlineStudents.length > 0 
                     ? onlineStudents[Math.floor(Math.random() * onlineStudents.length)].name 
@@ -184,6 +193,8 @@
                     
                     document.getElementById('instruction-hint').classList.remove('hidden');
 
+                    // 🔥🔥 الأهم: تفعيل الدور لهذا الطالب بالتحديد 🔥🔥
+                    // هادشي اللي غيخلي الزر يبان عندو فالهاتف
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, winner.$id, {
                         is_turn: true,
                         transcript: "" 
@@ -241,8 +252,7 @@
         // --- 3. GROUPS ---
         function organizeGroups() {
             document.querySelectorAll('.student-chip').forEach(e => e.remove());
-            // فقط المتصلين
-            const activeStudents = studentsData.filter(s => s.status === 'online');
+            const activeStudents = studentsData.filter(s => s.status === 'online'); // فقط الأونلاين
             
             activeStudents.forEach((s, index) => {
                 const grp = GROUPS[s.name] || 2;
