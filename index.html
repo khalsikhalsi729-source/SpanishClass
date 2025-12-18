@@ -10,129 +10,139 @@
 </head>
 <body>
     <div id="login-screen">
-        <h2 style="margin-top: 50px;">SELECCIONA TU NOMBRE 6</h2>
-        <div id="names-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 20px;"></div>
-    </div>
-    
-    <div id="wait-screen" class="hidden turn-container">
-        <h1 style="color: #238636; font-size: 3rem;">CONECTADO</h1>
-        <p style="opacity: 0.7;">Mira la pantalla del profesor...</p>
+        <h2>SELECCIONA TU NOMBRE</h2>
+        <div id="names-grid" class="grid"></div>
     </div>
 
-    <div id="game-screen" class="hidden turn-container">
-        <button id="mic-btn" class="mystery-btn">PULSA PARA HABLAR</button>
-        <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 1.5rem;">¡ES TU TURNO!</p>
+    <div id="wait-screen" class="hidden connected-screen">
+        <h1 class="connected-text">CONECTADO</h1>
+        <p>Espera tu turno...</p>
     </div>
 
-    <script>
-        const API_KEY = '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';
-        let myDocId = null;
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
+    <div id="game-screen" class="hidden" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
+        <div id="btn-container">
+            <button id="mic-btn" class="mystery-btn">🎤</button>
+            <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 18px;">¡ES TU TURNO!</p>
+        </div>
+    </div>
 
-        async function loadStudents() {
-            const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
-            const grid = document.getElementById('names-grid');
-            res.documents.forEach(doc => {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-blue';
-                btn.innerText = doc.name;
-                btn.style.padding = "20px";
-                if(doc.status === 'online') btn.disabled = true;
-                btn.onclick = () => login(doc.$id);
-                grid.appendChild(btn);
-            });
-        }
-        loadStudents();
+<script>
+const API_KEY = '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'; // تأكد من استخدام المفتاح الخاص بك
+let myDocId = null;
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
 
-        async function login(id) {
-            myDocId = id;
-            document.getElementById('login-screen').classList.add('hidden');
+// Load Students
+async function loadStudents() {
+    try {
+        const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+        const grid = document.getElementById('names-grid');
+        response.documents.forEach(doc => {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.innerText = doc.name;
+            // لا نمنع الدخول حتى لو كان "online" تحسباً لانقطاع الاتصال
+            btn.onclick = () => login(doc.$id);
+            grid.appendChild(btn);
+        });
+    } catch (e) { console.error(e); }
+}
+loadStudents();
+
+async function login(id) {
+    myDocId = id;
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('wait-screen').classList.remove('hidden');
+
+    // Update status to online (No cheating flag anymore)
+    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+        status: 'online', is_turn: false
+    });
+
+    startListeners();
+}
+
+function startListeners() {
+    client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
+        const data = response.payload;
+        if (data.is_turn) {
+            document.getElementById('wait-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.body.style.backgroundColor = '#1f2428';
+            navigator.vibrate([200, 100, 200]); // Vibrate to alert student
+        } else {
+            document.getElementById('game-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
-
-            await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                status: 'online', is_turn: false
-            });
-
-            client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
-                const data = response.payload;
-                if (data.is_turn) {
-                    document.getElementById('wait-screen').classList.add('hidden');
-                    document.getElementById('game-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#0d1117';
-                    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
-                } else {
-                    document.getElementById('game-screen').classList.add('hidden');
-                    document.getElementById('wait-screen').classList.remove('hidden');
-                    resetMicBtn();
-                }
-            });
+            document.body.style.backgroundColor = '#0d1117';
+            resetMicUI();
         }
+    });
+}
 
-        const micBtn = document.getElementById('mic-btn');
-        const statusText = document.getElementById('status-text');
+// Recording Logic
+const micBtn = document.getElementById('mic-btn');
+const statusText = document.getElementById('status-text');
 
-        function resetMicBtn() {
+micBtn.onclick = async () => {
+    if (!isRecording) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.start();
+            isRecording = true;
+            micBtn.classList.add('recording');
+            micBtn.innerText = "⏹";
+            statusText.innerText = "GRABANDO...";
+        } catch (e) { alert("Error: Permiso de micrófono denegado"); }
+    } else {
+        mediaRecorder.stop();
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
             micBtn.classList.remove('recording');
-            micBtn.innerText = "PULSA";
-            micBtn.style.background = "radial-gradient(circle, #1f6feb 0%, #0d1117 100%)";
-            statusText.innerText = "¡ES TU TURNO!";
+            micBtn.innerText = "⏳";
+            statusText.innerText = "ENVIANDO...";
+            await sendToAI(blob);
             isRecording = false;
-        }
-
-        micBtn.onclick = async () => {
-            if (!isRecording) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
-                    mediaRecorder = new MediaRecorder(stream, { mimeType });
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.start();
-                    isRecording = true;
-                    micBtn.classList.add('recording');
-                    micBtn.innerText = "⏹";
-                    statusText.innerText = "GRABANDO...";
-                } catch (e) { alert("Error microfono"); }
-            } else {
-                mediaRecorder.stop();
-                mediaRecorder.onstop = async () => {
-                    const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                    micBtn.classList.remove('recording');
-                    micBtn.innerText = "⏳";
-                    statusText.innerText = "ENVIANDO...";
-                    await sendToAI(blob);
-                    statusText.innerText = "¡ENVIADO!";
-                    micBtn.innerText = "✓";
-                };
-            }
         };
+    }
+};
 
-        async function sendToAI(blob) {
-            const formData = new FormData();
-            const ext = blob.type.includes("mp4") ? "m4a" : "webm";
-            formData.append("file", blob, `recording.${ext}`);
-            formData.append("model", "whisper-large-v3");
-            formData.append("language", "es"); 
-            formData.append("temperature", "0");
-            // ✅ Prompt مصحح ليعرف المودل أن السياق هو تصريف الأفعال
-            formData.append("prompt", "El estudiante está conjugando verbos en español. Pretérito Indefinido.");
+function resetMicUI() {
+    micBtn.classList.remove('recording');
+    micBtn.innerText = "🎤";
+    statusText.innerText = "¡ES TU TURNO!";
+    isRecording = false;
+}
 
-            try {
-                const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${API_KEY}` },
-                    body: formData
-                });
-                const data = await res.json();
-                if (data.text) {
-                    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                        transcript: data.text
-                    });
-                }
-            } catch (e) {}
+async function sendToAI(blob) {
+    const formData = new FormData();
+    const ext = blob.type.includes("mp4") ? "m4a" : "webm";
+    formData.append("file", blob, `recording.${ext}`);
+    formData.append("model", "whisper-large-v3");
+    formData.append("language", "es"); // Force Spanish
+    
+    try {
+        const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${API_KEY}` },
+            body: formData
+        });
+        const data = await res.json();
+        if (data.text) {
+            statusText.innerText = "¡ENVIADO!";
+            micBtn.innerText = "✓";
+            await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                transcript: data.text
+            });
         }
-    </script>
+    } catch (e) { 
+        statusText.innerText = "ERROR"; 
+    }
+}
+</script>
 </body>
 </html>
