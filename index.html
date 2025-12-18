@@ -17,17 +17,11 @@
     <div id="wait-screen" class="hidden turn-container">
         <h1 style="color: #238636; font-size: 3rem;">CONECTADO</h1>
         <p style="opacity: 0.7;">Espera tu turno...</p>
-        <p style="font-size: 0.8rem; color: #ffaa00; margin-top: 20px;">⚠️ لا تغادر الصفحة!</p>
     </div>
 
     <div id="game-screen" class="hidden turn-container">
         <button id="mic-btn" class="mystery-btn">PULSA</button>
         <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 1.5rem;">ES TU TURNO</p>
-    </div>
-
-    <div id="busted-screen" class="hidden turn-container" style="background: #440a0a;">
-        <h1 style="font-size: 4rem;">¡TE VI! 😡</h1>
-        <p>Has salido de la aplicación.</p>
     </div>
 
     <script>
@@ -37,100 +31,16 @@
         let audioChunks = [];
         let isRecording = false;
 
-        // ==========================================
-        // 🔥 نظام كشف الغش (المعدل) 🔥
-        // ==========================================
-        let lastTouchTime = Date.now();
-
-        // تسجيل كل أنواع اللمس الممكنة
-        const events = ['touchstart', 'touchend', 'click', 'scroll', 'mousedown', 'pointerdown'];
-        events.forEach(evt => {
-            document.addEventListener(evt, () => {
-                lastTouchTime = Date.now();
-            }, { passive: true });
-        });
-
-        document.addEventListener("visibilitychange", async () => {
-            // إلا كان التلميذ مسجل الدخول
-            if (myDocId) {
-                
-                // 1. حالة الخروج (التطبيق تخبى)
-                if (document.hidden) {
-                    const now = Date.now();
-                    const diff = now - lastTouchTime;
-
-                    // لوجيك: إلا الفرق قل من ثانية ونص = استعمل يدو باش يخرج = غش
-                    if (diff < 1500) { 
-                        console.log("🚨 Cheating detected locally!");
-                        
-                        // أ. عقاب محلي فوري (باش يعرف راسو حصل)
-                        applyLocalPunishment();
-
-                        // ب. تسجيل الغش في ذاكرة الهاتف (باش منين يرجع نفرشوه)
-                        localStorage.setItem('was_cheating', 'true');
-
-                        // ج. محاولة إخبار السيرفر (يقدر تفشل إلا النت تقطع دغيا)
-                        try {
-                            await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                                cheated: true,
-                                status: 'cheated'
-                            });
-                        } catch (e) {
-                            console.log("Network fail, will sync on return.");
-                        }
-                    } else {
-                        console.log("✅ Phone Locked / Screen off (Safe)");
-                    }
-                } 
-                
-                // 2. حالة العودة (التلميذ رجع حل الصفحة)
-                else {
-                    // واش كان مسجل عليه غش في الذاكرة؟
-                    if (localStorage.getItem('was_cheating') === 'true') {
-                        console.log("👮‍♂️ Welcome back! You were cheating.");
-                        applyLocalPunishment();
-                        
-                        // دابا الأنترنت رجعات، صيفط الخبار للأستاذ بزز
-                        await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                            cheated: true,
-                            status: 'cheated'
-                        });
-                        
-                        // مسح الذاكرة باش ما يعاودش يصيفطها
-                        localStorage.removeItem('was_cheating');
-                    }
-                    
-                    // إعادة تفعيل Wake Lock
-                    try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
-                }
-            }
-        });
-
-        function applyLocalPunishment() {
-            document.getElementById('wait-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.add('hidden');
-            document.getElementById('busted-screen').classList.remove('hidden');
-        }
-
-        // ==========================================
-        // باقي الكود كما هو
-        // ==========================================
-
         async function loadStudents() {
             try {
                 const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
                 const grid = document.getElementById('names-grid');
-                grid.innerHTML = '';
                 res.documents.forEach(doc => {
                     const btn = document.createElement('button');
                     btn.className = 'btn btn-blue';
                     btn.innerText = doc.name;
                     btn.style.padding = "20px";
-                    // نمنع الدخول إذا كان أصلا online أو مغشش
-                    if(doc.status === 'online' || doc.cheated) {
-                        btn.disabled = true;
-                        btn.style.opacity = "0.5";
-                    }
+                    if(doc.status === 'online') btn.disabled = true;
                     btn.onclick = () => login(doc.$id);
                     grid.appendChild(btn);
                 });
@@ -140,43 +50,23 @@
 
         async function login(id) {
             myDocId = id;
-            try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
-            
             document.getElementById('login-screen').classList.add('hidden');
-            
-            // تحقق مبدئي: واش هاد خينا ديجا مغشش من قبل؟
-            if (localStorage.getItem('was_cheating') === 'true') {
-                applyLocalPunishment();
-                // تحديث السيرفر
-                await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                    cheated: true, status: 'cheated'
-                });
-            } else {
-                document.getElementById('wait-screen').classList.remove('hidden');
-                
-                await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                    status: 'online', cheated: false, is_turn: false
-                });
-            }
+            document.getElementById('wait-screen').classList.remove('hidden');
 
+            // تسجيل الدخول فقط
+            await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                status: 'online', is_turn: false
+            });
+
+            // الاستماع للدور
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
-                
-                // إلا الأستاذ صيفط ليه بلي راه مغشش
-                if (data.cheated) {
-                    applyLocalPunishment();
-                    return;
-                }
-
                 if (data.is_turn) {
                     document.getElementById('wait-screen').classList.add('hidden');
                     document.getElementById('game-screen').classList.remove('hidden');
                     document.body.style.backgroundColor = '#0d1117';
-                    if(navigator.vibrate) navigator.vibrate(200);
+                    navigator.vibrate(200);
                 } else {
-                    // إلا كان ماشي وقت دورو وماشي مغشش
-                    if (!document.getElementById('busted-screen').classList.contains('hidden')) return;
-                    
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('wait-screen').classList.remove('hidden');
                     resetMicBtn();

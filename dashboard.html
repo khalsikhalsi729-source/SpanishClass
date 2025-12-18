@@ -19,9 +19,8 @@
 <body>
 
     <div style="background: #161b22; padding: 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center;">
-        <h2 id="mode-title" style="margin: 0; color: #58a6ff;">MODO: MONITOR</h2>
+        <h2 id="mode-title" style="margin: 0; color: #58a6ff;">MODO: RULETA</h2>
         <div style="display: flex; gap: 10px; align-items: center;">
-            <button class="btn btn-action" onclick="switchMode('monitor')">📊 MONITOR</button>
             <button class="btn btn-blue" onclick="switchMode('turn')">🎰 RULETA</button>
             <button class="btn btn-gold" onclick="switchMode('group')">🧩 GRUPOS</button>
             
@@ -46,9 +45,7 @@
         </div>
     </div>
 
-    <div id="monitor-view" class="dashboard-grid"></div>
-
-    <div id="turn-view" class="turn-container hidden">
+    <div id="turn-view" class="turn-container">
         <button id="next-btn" class="btn btn-blue" onclick="startRoulette()" style="font-size: 28px; padding: 20px 50px; border-radius: 50px; box-shadow: 0 10px 30px rgba(31, 111, 235, 0.3);">
             🎲 GIRAR RULETA
         </button>
@@ -98,89 +95,55 @@
         async function init() {
             const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
             studentsData = res.documents;
-            renderMonitor();
 
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
                 const doc = response.payload;
                 const idx = studentsData.findIndex(s => s.$id === doc.$id);
                 if (idx !== -1) studentsData[idx] = doc;
                 
-                renderMonitor();
-
-                // ✅ المنطق المصحح لمنع التكرار
+                // ✅ منطق وصول الصوت (بدون تكرار)
                 if (currentSpeaker && currentSpeaker.$id === doc.$id && doc.transcript && doc.transcript.length > 0) {
                     
-                    // 🛡️ حماية ضد التكرار: نتحقق هل هذا النص هو نفسه آخر نص تم تسجيله؟
                     const lastEntry = historyLog[0];
                     if (lastEntry && lastEntry.text === doc.transcript && lastEntry.name === doc.name) {
-                        return; // ⛔ توقف! هذا الميساج ديجا سجلناه
+                        return;
                     }
 
-                    // 1. تحديث الحالة
                     const badge = document.getElementById('status-badge');
                     badge.className = "status-badge status-ready";
                     badge.innerText = "¡AUDIO RECIBIDO! (Ver Historial)";
                     badge.style.background = "#238636";
                     
-                    // 2. الحفظ
                     addToHistoryLog(doc);
-                    
-                    // 3. تنبيه
                     document.getElementById('history-alert').classList.remove('hidden');
 
-                    // 4. إنهاء الدور
                     databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeaker.$id, {
                         is_turn: false
                     });
 
-                    // 5. تفعيل الزر
                     document.getElementById('next-btn').disabled = false;
                 }
             });
         }
         init();
 
-        // --- 1. MONITOR ---
-        function renderMonitor() {
-            const container = document.getElementById('monitor-view');
-            container.innerHTML = '';
-            
-            studentsData.forEach(s => {
-                if (s.status === 'offline' && !s.cheated) return;
-                
-                const card = document.createElement('div');
-                card.className = `monitor-card ${s.cheated ? 'cheated' : 'online'}`;
-                
-                let html = `
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <span style="font-weight: bold; font-size: 1.1em;">${s.name}</span>
-                        <div class="status-indicator"></div>
-                    </div>
-                    <div style="margin-top: 10px; font-size: 0.9em; opacity: 0.7;">
-                        ${s.cheated ? '¡SALÍO DE LA APP!' : 'Conectado'}
-                    </div>
-                `;
-                card.innerHTML = html;
-                container.appendChild(card);
-            });
-        }
-
-        // --- 2. ROULETTE ---
+        // --- 1. ROULETTE ---
         async function startRoulette() {
             const badge = document.getElementById('status-badge');
             badge.classList.add('hidden');
             badge.className = "status-badge";
             document.getElementById('instruction-hint').classList.add('hidden');
             
+            // ✅ الفلتر: فقط المتصلين
             let candidates = studentsData.filter(s => 
                 s.status === 'online' && 
-                !s.cheated && 
                 !playedIDs.has(s.$id)
             );
 
             if (candidates.length === 0) {
+                // إعادة التدوير ولكن فقط للمتصلين
                 playedIDs.clear();
-                candidates = studentsData.filter(s => s.status === 'online' && !s.cheated);
+                candidates = studentsData.filter(s => s.status === 'online');
             }
 
             if (candidates.length === 0) { alert("¡No hay alumnos conectados!"); return; }
@@ -199,7 +162,12 @@
 
             let steps = 0;
             const interval = setInterval(async () => {
-                const randomName = studentsData[Math.floor(Math.random() * studentsData.length)].name;
+                // نختار اسم عشوائي من "الحضور فقط" للعرض
+                const onlineStudents = studentsData.filter(s => s.status === 'online');
+                const randomName = onlineStudents.length > 0 
+                    ? onlineStudents[Math.floor(Math.random() * onlineStudents.length)].name 
+                    : winner.name;
+                
                 display.innerText = randomName;
                 steps++;
 
@@ -224,9 +192,8 @@
             }, 80);
         }
 
-        // --- 3. HISTORIAL ---
+        // --- 2. HISTORIAL ---
         function addToHistoryLog(student) {
-            // إضافة للتاريخ
             const entry = { 
                 name: student.name, 
                 text: student.transcript, 
@@ -239,12 +206,10 @@
         function renderHistoryLog() {
             const list = document.getElementById('full-history-list');
             list.innerHTML = "";
-            
             if (historyLog.length === 0) {
                 list.innerHTML = '<p style="text-align: center; color: gray;">Esperando respuestas...</p>';
                 return;
             }
-
             historyLog.forEach(item => {
                 const div = document.createElement('div');
                 div.style.background = "#0d1117";
@@ -252,7 +217,6 @@
                 div.style.borderRadius = "8px";
                 div.style.padding = "15px";
                 div.style.marginBottom = "10px";
-                
                 div.innerHTML = `
                     <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                         <span style="color: #58a6ff; font-weight: bold; font-size: 1.1em;">${item.name}</span>
@@ -274,10 +238,11 @@
             }
         }
 
-        // --- 4. GROUPS ---
+        // --- 3. GROUPS ---
         function organizeGroups() {
             document.querySelectorAll('.student-chip').forEach(e => e.remove());
-            const activeStudents = studentsData.filter(s => s.status === 'online' || s.cheated);
+            // فقط المتصلين
+            const activeStudents = studentsData.filter(s => s.status === 'online');
             
             activeStudents.forEach((s, index) => {
                 const grp = GROUPS[s.name] || 2;
@@ -297,10 +262,17 @@
         }
 
         function switchMode(mode) {
-            ['monitor-view', 'turn-view', 'group-view'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            if(mode === 'monitor') { document.getElementById('monitor-view').classList.remove('hidden'); document.getElementById('mode-title').innerText = "MODO: MONITOR"; }
-            else if(mode === 'turn') { document.getElementById('turn-view').classList.remove('hidden'); document.getElementById('mode-title').innerText = "MODO: RULETA"; }
-            else if(mode === 'group') { document.getElementById('group-view').classList.remove('hidden'); document.getElementById('grouping-canvas').style.display = 'block'; document.getElementById('mode-title').innerText = "MODO: GRUPOS"; }
+            document.getElementById('turn-view').classList.add('hidden');
+            document.getElementById('group-view').classList.add('hidden');
+            
+            if(mode === 'turn') { 
+                document.getElementById('turn-view').classList.remove('hidden'); 
+                document.getElementById('mode-title').innerText = "MODO: RULETA"; 
+            } else if(mode === 'group') { 
+                document.getElementById('group-view').classList.remove('hidden'); 
+                document.getElementById('grouping-canvas').style.display = 'block'; 
+                document.getElementById('mode-title').innerText = "MODO: GRUPOS"; 
+            }
         }
 
         async function resetAll() {
