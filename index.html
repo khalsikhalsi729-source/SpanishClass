@@ -1,194 +1,359 @@
+
 <!DOCTYPE html>
+
 <html lang="es">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clase de Español</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
-    <script src="config.js"></script>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>Clase de Español</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
+
+<script src="config.js"></script>
+
 </head>
+
 <body>
-    <div id="login-screen">
-        <h2>SELECCIONA TU NOMBRE</h2>
-        <div id="names-grid" class="grid"></div>
-    </div>
 
-    <div id="wait-screen" class="hidden connected-screen">
-        <h1 class="connected-text">CONECTADO/A</h1>
-        <p style="margin-top: 20px; font-size: 14px; opacity: 0.7;">Espera tu turno...</p>
-    </div>
+<div id="login-screen">
 
-    <div id="game-screen" class="hidden" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
-        <div id="btn-container">
-            <button id="mic-btn" class="mystery-btn">🎤 HABLAR</button>
-            <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 18px;">ES TU TURNO</p>
-        </div>
-    </div>
+<h2>SELECCIONA TU NOMBRE</h2>
 
-    <script>
-        const API_KEY = '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'; // Groq API
-        let myDocId = null;
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
-        let wakeLock = null;
-        let realtimeSubscription = null; // للاحتفاظ بالاشتراك
+<div id="names-grid" class="grid"></div>
 
-        // منع انطفاء الشاشة
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                }
-            } catch (err) { console.error(err); }
-        }
+</div>
 
-        // تحميل الأسماء
-        async function loadStudents() {
-            try {
-                const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
-                const grid = document.getElementById('names-grid');
-                response.documents.forEach(doc => {
-                    const btn = document.createElement('button');
-                    btn.className = 'btn';
-                    btn.innerText = doc.name;
-                    // إذا كان أصلاً أونلاين، نمنع الدخول (اختياري)
-                    if(doc.status === 'online') btn.disabled = true;
-                    btn.onclick = () => login(doc.$id);
-                    grid.appendChild(btn);
-                });
-            } catch (e) { console.error(e); }
-        }
-        loadStudents();
+<div id="wait-screen" class="hidden connected-screen">
 
-        // تسجيل الدخول
-        async function login(id) {
-            myDocId = id;
-            await requestWakeLock();
-            
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('wait-screen').classList.remove('hidden');
+<h1 class="connected-text">CONECTADO/A</h1>
 
-            // تحديث الحالة لـ Online
-            await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                status: 'online', is_turn: false
-            });
+<p style="margin-top: 20px; font-size: 14px; opacity: 0.7;">Espera tu turno...</p>
 
-            // ✅ تشغيل الاستماع الفوري (REALTIME)
-            startRealtimeListener();
-        }
+</div>
 
-        // ✅ دالة الـ Realtime (أهم جزء)
-        function startRealtimeListener() {
-            // القناة: databases.[ID].collections.[ID].documents.[STUDENT_ID]
-            // هاد القناة كتعني: أي تغيير يوقع فـ الملف ديالي أنا بالضبط، علمني
-            const channel = `databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`;
+<div id="game-screen" class="hidden" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
 
-            console.log("Listening to channel:", channel);
+<div id="btn-container">
 
-            realtimeSubscription = client.subscribe(channel, response => {
-                console.log("Realtime Update:", response);
+<button id="mic-btn" class="mystery-btn">PULSA AQUÍ</button>
 
-                // التحقق من نوع الحدث (فقط updates)
-                if (response.events.some(event => event.includes('update'))) {
-                    const data = response.payload;
+<p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 18px;">ES TU TURNO</p>
 
-                    // 1. إذا وصلني الدور (is_turn = true)
-                    if (data.is_turn === true) {
-                        showGameScreen();
-                    } 
-                    // 2. إذا تسحب مني الدور (is_turn = false)
-                    else {
-                        showWaitScreen();
-                    }
-                }
-            });
-        }
+</div>
 
-        function showGameScreen() {
-            document.getElementById('wait-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            document.body.style.backgroundColor = '#1f2428';
-            // اهتزاز الهاتف لتنبيه التلميذ (إلا كان مدعوم)
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        }
+</div>
 
-        function showWaitScreen() {
-            document.getElementById('game-screen').classList.add('hidden');
-            document.getElementById('wait-screen').classList.remove('hidden');
-            document.body.style.backgroundColor = '#0d1117';
-            
-            // إعادة ضبط الزر
-            isRecording = false;
-            const btn = document.getElementById('mic-btn');
-            btn.classList.remove('recording');
-            btn.innerText = "🎤 HABLAR";
-            document.getElementById('status-text').innerText = "ES TU TURNO";
-        }
+<div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
 
-        // --- منطق التسجيل (بقي كما هو) ---
-        const micBtn = document.getElementById('mic-btn');
-        const statusText = document.getElementById('status-text');
+<h1 style="font-size: 60px;">¡TE VI! 😡</h1>
 
-        micBtn.onclick = async () => {
-            if (!isRecording) {
-                // Start Recording
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
-                    mediaRecorder = new MediaRecorder(stream, { mimeType });
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.start();
-                    isRecording = true;
-                    
-                    micBtn.classList.add('recording');
-                    micBtn.innerText = "⏹ DETENER";
-                    statusText.innerText = "GRABANDO...";
-                } catch (e) { alert("Error de micrófono: " + e.message); }
-            } else {
-                // Stop Recording
-                mediaRecorder.stop();
-                mediaRecorder.onstop = async () => {
-                    const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                    micBtn.classList.remove('recording');
-                    micBtn.innerText = "⏳ ENVIANDO...";
-                    statusText.innerText = "PROCESANDO...";
-                    
-                    await sendToAI(blob);
-                    
-                    isRecording = false;
-                    micBtn.innerText = "✓ LISTO";
-                    statusText.innerText = "¡RESPUESTA ENVIADA!";
-                    mediaRecorder.stream.getTracks().forEach(t => t.stop());
-                };
-            }
-        };
+<p style="font-size: 24px;">Has salido de la aplicación.</p>
 
-        async function sendToAI(blob) {
-            const formData = new FormData();
-            const ext = blob.type.includes("mp4") ? "m4a" : "webm";
-            formData.append("file", blob, `recording.${ext}`);
-            formData.append("model", "whisper-large-v3");
-            formData.append("language", "es");
-            formData.append("temperature", "0");
-            
-            try {
-                const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${API_KEY}` },
-                    body: formData
-                });
-                const data = await res.json();
-                if (data.text) {
-                    // إرسال النص لـ Appwrite
-                    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                        transcript: data.text
-                    });
-                }
-            } catch (e) { console.error(e); }
-        }
-    </script>
+</div>
+
+
+
+<script>
+
+const API_KEY = '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';
+
+let myDocId = null;
+
+let mediaRecorder;
+
+let audioChunks = [];
+
+let isRecording = false;
+
+let wakeLock = null;
+
+
+
+// ✅ 1. دالة لمنع انطفاء الشاشة (Anti-Auto-Lock)
+
+async function requestWakeLock() {
+
+try {
+
+if ('wakeLock' in navigator) {
+
+wakeLock = await navigator.wakeLock.request('screen');
+
+console.log('Wake Lock active');
+
+}
+
+} catch (err) {
+
+console.error(`${err.name}, ${err.message}`);
+
+}
+
+}
+
+
+
+async function loadStudents() {
+
+try {
+
+const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+
+const grid = document.getElementById('names-grid');
+
+response.documents.forEach(doc => {
+
+const btn = document.createElement('button');
+
+btn.className = 'btn';
+
+btn.innerText = doc.name;
+
+if(doc.status === 'online') btn.disabled = true;
+
+btn.onclick = () => login(doc.$id);
+
+grid.appendChild(btn);
+
+});
+
+} catch (e) { console.error(e); }
+
+}
+
+loadStudents();
+
+
+
+async function login(id) {
+
+myDocId = id;
+
+// تفعيل Wake Lock فوراً عند الدخول
+
+await requestWakeLock();
+
+
+
+document.getElementById('login-screen').classList.add('hidden');
+
+document.getElementById('wait-screen').classList.remove('hidden');
+
+
+
+await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+
+status: 'online', cheated: false, is_turn: false
+
+});
+
+
+
+startListeners();
+
+activateTrap();
+
+}
+
+
+
+function startListeners() {
+
+client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
+
+const data = response.payload;
+
+if (data.is_turn) {
+
+document.getElementById('wait-screen').classList.add('hidden');
+
+document.getElementById('game-screen').classList.remove('hidden');
+
+document.body.style.backgroundColor = '#1f2428';
+
+} else {
+
+document.getElementById('game-screen').classList.add('hidden');
+
+document.getElementById('wait-screen').classList.remove('hidden');
+
+document.body.style.backgroundColor = '#0d1117';
+
+const btn = document.getElementById('mic-btn');
+
+btn.classList.remove('recording');
+
+btn.innerText = "PULSA AQUÍ";
+
+}
+
+});
+
+}
+
+
+
+const micBtn = document.getElementById('mic-btn');
+
+const statusText = document.getElementById('status-text');
+
+
+
+micBtn.onclick = async () => {
+
+if (!isRecording) {
+
+try {
+
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+
+mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+audioChunks = [];
+
+mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+
+mediaRecorder.start();
+
+isRecording = true;
+
+micBtn.classList.add('recording');
+
+micBtn.innerText = "⏹";
+
+statusText.innerText = "GRABANDO... (Habla ahora)";
+
+} catch (e) { alert("Error de micrófono"); }
+
+} else {
+
+mediaRecorder.stop();
+
+mediaRecorder.onstop = async () => {
+
+const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+
+micBtn.classList.remove('recording');
+
+micBtn.innerText = "⏳";
+
+statusText.innerText = "PROCESANDO...";
+
+await sendToAI(blob);
+
+isRecording = false;
+
+statusText.innerText = "¡ENVIADO!";
+
+micBtn.innerText = "✓";
+
+mediaRecorder.stream.getTracks().forEach(t => t.stop());
+
+};
+
+}
+
+};
+
+
+
+async function sendToAI(blob) {
+
+const formData = new FormData();
+
+const ext = blob.type.includes("mp4") ? "m4a" : "webm";
+
+formData.append("file", blob, `recording.${ext}`);
+
+formData.append("model", "whisper-large-v3");
+
+formData.append("language", "es");
+
+formData.append("temperature", "0");
+
+formData.append("prompt", "Una frase en español.");
+
+
+
+try {
+
+const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+
+method: "POST",
+
+headers: { "Authorization": `Bearer ${API_KEY}` },
+
+body: formData
+
+});
+
+const data = await res.json();
+
+if (data.text) {
+
+await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+
+transcript: data.text
+
+});
+
+}
+
+} catch (e) {}
+
+}
+
+
+
+// ✅ المصيدة المعدلة: تعتمد على أن Wake Lock يمنع القفل التلقائي
+
+function activateTrap() {
+
+document.addEventListener("visibilitychange", async () => {
+
+if (document.visibilityState === 'visible') {
+
+// إذا رجع التلميذ، نعاودو نشعلو Wake Lock احتياطياً
+
+await requestWakeLock();
+
+} else {
+
+// document.hidden = true
+
+// بما أننا مفعلين Wake Lock، فالشاشة مغطفاش بوحدها.
+
+// إذن، إذا وصلنا هنا، فالمستخدم غالباً خرج من التطبيق أو دار Switch Tab.
+
+
+document.getElementById('wait-screen').classList.add('hidden');
+
+document.getElementById('game-screen').classList.add('hidden');
+
+document.getElementById('busted-screen').classList.remove('hidden');
+
+databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+
+cheated: true, status: 'cheated'
+
+});
+
+}
+
+});
+
+}
+
+</script>
+
 </body>
+
 </html>

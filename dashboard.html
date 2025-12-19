@@ -1,324 +1,442 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Panel de Profesor</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
-    <script src="config.js"></script>
-    <style>
-        .control-bar { display: flex; gap: 10px; background: #161b22; padding: 15px; border-bottom: 2px solid #30363d; flex-wrap: wrap; }
-        .mode-title { color: #58a6ff; font-weight: bold; font-size: 24px; text-transform: uppercase; margin-right: auto; align-self: center; }
-        
-        .current-turn-box {
-            text-align: center; margin: 20px auto; padding: 40px;
-            border: 4px solid #58a6ff; border-radius: 20px;
-            background: #0d1117; width: 70%; box-shadow: 0 0 30px rgba(88, 166, 255, 0.15);
-            min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center;
-        }
-        
-        .active-speaker { font-size: 4em; color: #58a6ff; margin: 20px 0; font-weight: bold; text-shadow: 0 0 10px rgba(88, 166, 255, 0.5); }
-        
-        .history-table { width: 80%; margin: 20px auto; border-collapse: collapse; color: #c9d1d9; background: #161b22; }
-        .history-table th, .history-table td { border: 1px solid #30363d; padding: 15px; text-align: left; }
-        .history-table th { background: #21262d; color: #58a6ff; }
-        
-        #grouping-canvas { position: relative; height: 75vh; width: 100%; margin-top: 10px; }
-        .group-box {
-            position: absolute; width: 30%; height: 50%; border: 3px solid;
-            border-radius: 15px; padding: 10px; background: rgba(22, 27, 34, 0.9);
-            overflow-y: auto; top: 10px; display: flex; flex-direction: column; gap: 5px;
-        }
-        .group-1 { left: 2%; border-color: #d2a8ff; }
-        .group-2 { left: 35%; border-color: #79c0ff; }
-        .group-3 { right: 2%; border-color: #56d364; }
-        
-        .pool-area {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 30%;
-            border-top: 2px dashed #30363d; display: flex; flex-wrap: wrap; 
-            justify-content: center; align-items: center; gap: 10px; padding: 20px;
-        }
 
-        .name-tag {
-            background: #238636; color: white; padding: 8px 15px; border-radius: 20px;
-            font-weight: bold; font-size: 16px; white-space: nowrap; z-index: 100;
-            transition: all 1s cubic-bezier(0.25, 1, 0.5, 1); position: absolute;
-        }
-    </style>
+
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>Panel de Profesor</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
+
+<script src="config.js"></script>
+
+<style>
+
+.control-bar { display: flex; justify-content: space-between; background: #161b22; padding: 15px; border-bottom: 2px solid #30363d; }
+
+.mode-title { color: #58a6ff; font-weight: bold; font-size: 24px; text-transform: uppercase; }
+
+.current-turn-box {
+
+text-align: center; margin: 20px auto; padding: 30px;
+
+border: 3px solid #58a6ff; border-radius: 15px;
+
+background: #0d1117; width: 60%; box-shadow: 0 0 20px rgba(88, 166, 255, 0.2);
+
+}
+
+.active-speaker { font-size: 3.5em; color: #58a6ff; margin: 10px 0; font-weight: bold; }
+
+.history-container { display: flex; flex-direction: column; align-items: center; margin-top: 30px; width: 100%; }
+
+.history-card {
+
+background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+
+padding: 15px; margin: 10px; width: 50%; display: flex; justify-content: space-between; align-items: center;
+
+opacity: 0.8; transition: opacity 0.3s;
+
+}
+
+.history-card:hover { opacity: 1; }
+
+.history-name { font-size: 1.2em; font-weight: bold; color: #c9d1d9; }
+
+.star-icon { font-size: 24px; color: gold; margin-right: 5px; animation: spin 2s infinite linear; display: inline-block;}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+</style>
+
 </head>
+
 <body>
 
+
+
 <div class="control-bar">
-    <div class="mode-title" id="mode-title">MODO: MONITOR</div>
-    <button class="btn btn-action" onclick="switchMode('monitor')">📊 MONITOR</button>
-    <button class="btn btn-action" onclick="switchMode('turn')">🎤 TURNOS</button>
-    <button class="btn btn-action" onclick="switchMode('group')">🧩 GRUPOS</button>
-    <button class="btn btn-action" onclick="switchMode('history')" style="background: #e3b341; color: black;">📜 HISTORIAL</button>
-    <button class="btn btn-danger" onclick="resetAll()" style="width: auto;">🔄 REINICIAR</button>
+
+<div class="mode-title" id="mode-title">MODO: MONITOR</div>
+
+<div>
+
+<button class="btn btn-action" onclick="switchMode('monitor')">📊 MONITOR</button>
+
+<button class="btn btn-action" onclick="switchMode('turn')">🎤 TURNOS</button>
+
+<button class="btn btn-action" onclick="switchMode('group')">🧩 GRUPOS</button>
+
+<button class="btn btn-danger" onclick="resetAll()" style="width: auto;">🔄 REINICIAR</button>
+
 </div>
+
+</div>
+
+
 
 <div id="monitor-view" class="dashboard-grid grid" style="padding: 20px;"></div>
 
+
+
 <div id="turn-view" class="hidden">
-    <div style="text-align: center; margin-top: 20px;">
-        <button id="next-btn" class="btn" onclick="nextTurn()" style="width: 300px; font-size: 24px; background: #1f6feb;">➡️ SIGUIENTE TURNO</button>
-    </div>
 
-    <div id="active-turn-card" class="current-turn-box hidden">
-        <p style="color: gray; text-transform: uppercase; letter-spacing: 2px;">JUGADOR ACTUAL</p>
-        <div id="speaker-name" class="active-speaker">...</div>
-        
-        <div id="loading-transcript" class="hidden" style="margin-top:20px;">
-            <span style="font-size:20px; color: #8b949e;">Esperando respuesta... ⏳</span>
-        </div>
+<div style="text-align: center; margin-top: 30px;">
 
-        <button id="reveal-btn-current" class="btn btn-reveal hidden" onclick="revealCurrent()" style="margin-top:20px;">👁️ MOSTRAR RESPUESTA</button>
-        <div id="speaker-text-current" class="transcript-hidden" style="margin-top: 20px; font-size: 28px; color: #e3b341;"></div>
-    </div>
+<button class="btn" onclick="nextTurn()" style="width: 300px; font-size: 24px; background: #1f6feb;">➡️ SIGUIENTE</button>
+
 </div>
+
+<div id="active-turn-card" class="current-turn-box hidden">
+
+<p style="color: gray; text-transform: uppercase; letter-spacing: 2px;">Hablando ahora</p>
+
+<div id="speaker-name" class="active-speaker">...</div>
+
+<button id="reveal-btn-current" class="btn btn-reveal hidden" onclick="revealCurrent()">👁️ MOSTRAR RESPUESTA</button>
+
+<div id="speaker-text-current" class="transcript-hidden" style="margin-top: 15px; font-size: 24px; min-height: 40px;"></div>
+
+</div>
+
+<div id="history-list" class="history-container"></div>
+
+</div>
+
+
 
 <div id="group-view" class="hidden">
-    <div style="text-align: center; padding: 10px;">
-        <button class="btn btn-action" onclick="startGroupingAnimation()">⭐ DISTRIBUIR GRUPOS</button>
-    </div>
-    <div id="grouping-canvas">
-        <div class="group-box group-1" id="box-1"><h3 style="color: #d2a8ff; text-align: center; border-bottom:1px solid #30363d; padding-bottom:5px;">GRUPO 1</h3></div>
-        <div class="group-box group-2" id="box-2"><h3 style="color: #79c0ff; text-align: center; border-bottom:1px solid #30363d; padding-bottom:5px;">GRUPO 2</h3></div>
-        <div class="group-box group-3" id="box-3"><h3 style="color: #56d364; text-align: center; border-bottom:1px solid #30363d; padding-bottom:5px;">GRUPO 3</h3></div>
-        <div class="pool-area" id="pool-area"></div>
-    </div>
+
+<div style="text-align: center; padding: 10px;">
+
+<button class="btn btn-action" onclick="startGroupingAnimation()">⭐ INICIAR DISTRIBUCIÓN</button>
+
 </div>
 
-<div id="history-view" class="hidden">
-    <h2 style="text-align: center; color: #58a6ff; margin-top: 20px;">HISTORIAL DE RESPUESTAS</h2>
-    <table class="history-table">
-        <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Grupo</th>
-                <th>Respuesta</th>
-            </tr>
-        </thead>
-        <tbody id="history-body">
-            </tbody>
-    </table>
+<div id="grouping-canvas">
+
+<div class="group-box group-1"><h3 style="color: #d2a8ff;">GRUPO 1</h3></div>
+
+<div class="group-box group-2"><h3 style="color: #79c0ff;">GRUPO 2</h3></div>
+
+<div class="group-box group-3"><h3 style="color: #56d364;">GRUPO 3</h3></div>
+
 </div>
+
+</div>
+
+
 
 <script>
+
+// ✅ التوزيع الجديد والصحيح (كما طلبت بالضبط)
+
 const GROUPS = {
-    "Fatima zahra": 1, "Hamza": 1, "Othmane": 1, "Omar": 1,
-    "Souhail": 2, "Zakariya": 2, "Marwa": 2, "Malak": 2,
-    "Hiba": 3, "Aya G.": 3, "Aya B.": 3, "Aya Z.": 3
+
+"Fatima zahra": 1, "Hamza": 1, "Othmane": 1, "Omar": 1,
+
+"Souhail": 2, "Zakariya": 2, "Marwa": 2, "Malak": 2,
+
+"Hiba": 3, "Aya G.": 3, "Aya B.": 3, "Aya Z.": 3
+
 };
 
+
+
 let studentsData = [];
+
 let currentSpeaker = null;
-let usedStudentIds = new Set();
-let lastGroup = null;
+
+
 
 async function init() {
-    const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
-    studentsData = res.documents;
-    
-    // استرجاع السجل
-    studentsData.forEach(s => {
-        if(s.is_turn && s.transcript) {
-             addToHistory(s.name, GROUPS[s.name] || '?', s.transcript);
-             usedStudentIds.add(s.$id);
-        }
-    });
 
-    renderMonitor();
+const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
 
-    client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
-        const doc = response.payload;
-        const idx = studentsData.findIndex(s => s.$id === doc.$id);
-        if (idx !== -1) studentsData[idx] = doc;
-        renderMonitor();
+studentsData = res.documents;
 
-        if (currentSpeaker && currentSpeaker.$id === doc.$id && doc.transcript) {
-            currentSpeaker.transcript = doc.transcript;
-            document.getElementById('loading-transcript').classList.add('hidden');
-            document.getElementById('reveal-btn-current').classList.remove('hidden');
-            document.getElementById('speaker-text-current').dataset.text = doc.transcript;
-            document.getElementById('next-btn').disabled = false;
-            
-            addToHistory(doc.name, GROUPS[doc.name] || '?', doc.transcript);
-        }
-    });
+renderMonitor();
+
+
+
+client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
+
+const doc = response.payload;
+
+const idx = studentsData.findIndex(s => s.$id === doc.$id);
+
+if (idx !== -1) studentsData[idx] = doc;
+
+renderMonitor();
+
+
+if (currentSpeaker && currentSpeaker.$id === doc.$id && doc.transcript) {
+
+currentSpeaker.transcript = doc.transcript;
+
+document.getElementById('reveal-btn-current').classList.remove('hidden');
+
+document.getElementById('speaker-text-current').dataset.text = doc.transcript;
+
+document.getElementById('speaker-text-current').innerText = "Respuesta recibida (oculta)";
+
 }
+
+});
+
+}
+
 init();
 
-function renderMonitor() {
-    const container = document.getElementById('monitor-view');
-    container.innerHTML = '';
-    studentsData.forEach(s => {
-        // ✅ التغيير المطلوب: لا تظهر الطالب إلا إذا كان أونلاين
-        if (s.status !== 'online') return;
 
-        const card = document.createElement('div');
-        card.className = `card ${s.is_turn ? 'speaking' : ''}`;
-        card.innerHTML = `
-            <h3>${s.name}</h3>
-            <p>🟢 ONLINE</p>
-        `;
-        container.appendChild(card);
-    });
+
+function renderMonitor() {
+
+const container = document.getElementById('monitor-view');
+
+container.innerHTML = '';
+
+studentsData.forEach(s => {
+
+if (s.status !== 'online' && !s.cheated) return;
+
+const card = document.createElement('div');
+
+card.className = `card ${s.cheated ? 'cheated' : ''} ${s.is_turn ? 'speaking' : ''}`;
+
+let html = `<h3>${s.name}</h3>`;
+
+if (s.cheated) html += `<h1 style="color:white;">¡TE VI!</h1>`;
+
+else html += `<p>CONECTADO</p>`;
+
+card.innerHTML = html;
+
+container.appendChild(card);
+
+});
+
 }
+
+
 
 async function nextTurn() {
-    const eligible = studentsData.filter(s => s.status === 'online' && !usedStudentIds.has(s.$id));
 
-    if (eligible.length === 0) {
-        alert("¡Todos los estudiantes han participado o no hay nadie conectado!");
-        return;
-    }
+if (currentSpeaker) {
 
-    if (currentSpeaker) {
-        databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeaker.$id, { is_turn: false });
-    }
+databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeaker.$id, { is_turn: false });
 
-    document.getElementById('active-turn-card').classList.remove('hidden');
-    document.getElementById('reveal-btn-current').classList.add('hidden');
-    document.getElementById('speaker-text-current').innerText = "";
-    document.getElementById('speaker-text-current').className = "transcript-hidden";
-    document.getElementById('loading-transcript').classList.remove('hidden');
-    document.getElementById('next-btn').disabled = true;
+addToHistory(currentSpeaker);
 
-    let candidates = eligible;
-    if (lastGroup !== null) {
-        const differentGroupCandidates = eligible.filter(s => GROUPS[s.name] !== lastGroup);
-        if (differentGroupCandidates.length > 0) {
-            candidates = differentGroupCandidates;
-        }
-    }
-
-    const winner = candidates[Math.floor(Math.random() * candidates.length)];
-    await spinRoulette(eligible, winner);
-
-    currentSpeaker = winner;
-    lastGroup = GROUPS[winner.name];
-    usedStudentIds.add(winner.$id);
-    
-    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, winner.$id, { is_turn: true, transcript: "" });
 }
 
-function spinRoulette(pool, winner) {
-    return new Promise(resolve => {
-        const nameDisplay = document.getElementById('speaker-name');
-        let counter = 0;
-        const totalSpins = 20;
-        
-        const interval = setInterval(() => {
-            const randomName = pool[Math.floor(Math.random() * pool.length)].name;
-            nameDisplay.innerText = randomName;
-            nameDisplay.style.color = "#8b949e";
-            counter++;
+document.getElementById('active-turn-card').classList.remove('hidden');
 
-            if (counter >= totalSpins) {
-                clearInterval(interval);
-                nameDisplay.innerText = winner.name;
-                nameDisplay.style.color = "#58a6ff";
-                resolve();
-            }
-        }, 100);
-    });
+document.getElementById('reveal-btn-current').classList.add('hidden');
+
+const textBox = document.getElementById('speaker-text-current');
+
+textBox.innerText = "";
+
+textBox.className = "transcript-hidden";
+
+textBox.dataset.text = "";
+
+
+
+const eligible = studentsData.filter(s => s.status === 'online' && !s.cheated);
+
+if (eligible.length === 0) { alert("¡No hay estudiantes disponibles!"); return; }
+
+
+const lucky = eligible[Math.floor(Math.random() * eligible.length)];
+
+currentSpeaker = lucky;
+
+document.getElementById('speaker-name').innerText = lucky.name;
+
+
+
+await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, lucky.$id, { is_turn: true, transcript: "" });
+
 }
+
+
 
 function revealCurrent() {
-    const textBox = document.getElementById('speaker-text-current');
-    const text = textBox.dataset.text || "";
-    textBox.innerText = `"${text}"`;
-    textBox.className = "transcript-revealed";
+
+const textBox = document.getElementById('speaker-text-current');
+
+const text = textBox.dataset.text || "";
+
+textBox.innerText = `"${text}"`;
+
+textBox.className = "transcript-revealed";
+
 }
 
-function addToHistory(name, group, text) {
-    const tbody = document.getElementById('history-body');
-    const row = document.createElement('tr');
-    row.innerHTML = `
-        <td style="font-weight:bold;">${name}</td>
-        <td>Grupo ${group}</td>
-        <td>"${text}"</td>
-    `;
-    tbody.insertBefore(row, tbody.firstChild);
+
+
+function addToHistory(student) {
+
+const list = document.getElementById('history-list');
+
+const div = document.createElement('div');
+
+div.className = 'history-card';
+
+const lastText = document.getElementById('speaker-text-current').dataset.text || student.transcript || "...";
+
+div.innerHTML = `
+
+<span class="history-name">${student.name}</span>
+
+<div style="display:flex; align-items:center; gap:10px;">
+
+<span id="hist-text-${student.$id}" class="transcript-hidden" style="font-size:14px;">${lastText}</span>
+
+<button class="btn btn-action" style="padding:5px 10px; font-size:12px;" onclick="revealHistory('${student.$id}')">👁️</button>
+
+</div>
+
+`;
+
+list.insertBefore(div, list.firstChild);
+
 }
+
+
+
+function revealHistory(id) {
+
+document.getElementById(`hist-text-${id}`).className = "transcript-revealed";
+
+}
+
+
 
 function startGroupingAnimation() {
-    const pool = document.getElementById('pool-area');
-    const onlineStudents = studentsData.filter(s => s.status === 'online');
-    
-    pool.innerHTML = '';
-    [1, 2, 3].forEach(i => {
-        const box = document.getElementById(`box-${i}`);
-        Array.from(box.children).forEach(c => { if(c.tagName !== 'H3') c.remove(); });
-    });
 
-    onlineStudents.forEach(s => {
-        const tag = document.createElement('div');
-        tag.className = 'name-tag';
-        tag.innerText = s.name;
-        tag.id = `tag-${s.$id}`;
-        pool.appendChild(tag);
-    });
+const canvas = document.getElementById('grouping-canvas');
 
-    setTimeout(() => {
-        onlineStudents.forEach(s => {
-            const tag = document.getElementById(`tag-${s.$id}`);
-            const groupNum = GROUPS[s.name] || 2;
-            const targetBox = document.getElementById(`box-${groupNum}`);
-            
-            const startRect = tag.getBoundingClientRect();
-            const targetRect = targetBox.getBoundingClientRect();
-            
-            tag.style.position = 'fixed';
-            tag.style.left = startRect.left + 'px';
-            tag.style.top = startRect.top + 'px';
-            tag.style.margin = 0;
+document.querySelectorAll('.floating-name').forEach(e => e.remove());
 
-            const offsetX = 20;
-            const offsetY = 50 + (targetBox.children.length * 40);
+const activeStudents = studentsData.filter(s => s.status === 'online' || s.cheated);
 
-            setTimeout(() => {
-                tag.style.left = (targetRect.left + offsetX) + 'px';
-                tag.style.top = (targetRect.top + offsetY) + 'px';
-                
-                setTimeout(() => {
-                    tag.style.position = 'static';
-                    tag.style.transform = 'none';
-                    targetBox.appendChild(tag);
-                }, 1000);
-            }, 100);
-        });
-    }, 500);
+
+activeStudents.forEach(s => {
+
+const el = document.createElement('div');
+
+el.className = 'floating-name';
+
+el.innerHTML = `<div class="star-icon">⭐</div> ${s.name}`;
+
+el.dataset.name = s.name;
+
+const centerX = canvas.clientWidth / 2 - 60 + (Math.random() * 100 - 50);
+
+const centerY = canvas.clientHeight / 2 - 30 + (Math.random() * 100 - 50);
+
+el.style.left = centerX + 'px';
+
+el.style.top = centerY + 'px';
+
+el.style.display = 'flex'; el.style.alignItems = 'center';
+
+canvas.appendChild(el);
+
+});
+
+
+
+setTimeout(() => {
+
+document.querySelectorAll('.floating-name').forEach(el => {
+
+const name = el.dataset.name;
+
+const groupNum = GROUPS[name] || 2;
+
+let targetX, targetY;
+
+const jitterX = Math.random() * 120; const jitterY = Math.random() * 150;
+
+if (groupNum === 1) { targetX = 30 + jitterX; targetY = 70 + jitterY; }
+
+else if (groupNum === 2) { targetX = canvas.clientWidth * 0.35 + 30 + jitterX; targetY = 70 + jitterY; }
+
+else { targetX = canvas.clientWidth * 0.70 + 30 + jitterX; targetY = 70 + jitterY; }
+
+el.style.left = targetX + 'px'; el.style.top = targetY + 'px';
+
+setTimeout(() => { el.style.transform = "scale(1.1)"; setTimeout(() => el.style.transform = "scale(1)", 200); }, 1500);
+
+});
+
+}, 1000);
+
 }
+
+
 
 function switchMode(mode) {
-    ['monitor', 'turn', 'group', 'history'].forEach(m => {
-        document.getElementById(`${m}-view`).classList.add('hidden');
-    });
-    document.getElementById(`${mode}-view`).classList.remove('hidden');
-    
-    const titles = {
-        'monitor': "MODO: MONITOR",
-        'turn': "MODO: TURNOS",
-        'group': "MODO: GRUPOS",
-        'history': "HISTORIAL"
-    };
-    document.getElementById('mode-title').innerText = titles[mode];
+
+document.getElementById('monitor-view').classList.add('hidden');
+
+document.getElementById('turn-view').classList.add('hidden');
+
+document.getElementById('group-view').classList.add('hidden');
+
+if (mode === 'monitor') {
+
+document.getElementById('monitor-view').classList.remove('hidden');
+
+document.getElementById('mode-title').innerText = "MODO: MONITOR";
+
+} else if (mode === 'turn') {
+
+document.getElementById('turn-view').classList.remove('hidden');
+
+document.getElementById('mode-title').innerText = "MODO: TURNOS";
+
+} else if (mode === 'group') {
+
+document.getElementById('group-view').classList.remove('hidden');
+
+document.getElementById('grouping-canvas').style.display = 'block';
+
+document.getElementById('mode-title').innerText = "MODO: GRUPOS";
+
 }
 
-async function resetAll() {
-    if(confirm("¿Reiniciar todo el sistema?")) {
-        studentsData.forEach(s => {
-            databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { 
-                status: 'offline', 
-                is_turn: false, 
-                transcript: "" 
-            });
-        });
-        location.reload();
-    }
 }
+
+
+
+async function resetAll() {
+
+if(confirm("¿Reiniciar todo el sistema?")) {
+
+studentsData.forEach(s => {
+
+databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { status: 'offline', cheated: false, is_turn: false, transcript: "" });
+
+});
+
+location.reload();
+
+}
+
+}
+
 </script>
+
 </body>
+
 </html>
