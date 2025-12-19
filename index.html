@@ -1,150 +1,155 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Clase de Español</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
-<script src="config.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Clase</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
+    <script src="config.js"></script>
 </head>
 <body>
-<div id="login-screen">
-<h2>SELECCIONA TU NOMBRE</h2>
-<div id="names-grid" class="grid"></div>
-</div>
 
-<div id="wait-screen" class="hidden connected-screen">
-<h1 class="connected-text">CONECTADO/A</h1>
-<p style="margin-top: 20px; font-size: 14px; opacity: 0.7;">Espera tu turno...</p>
+    <div id="login-screen">
+        <h2>IDENTIFÍCATE (عرف بنفسك)</h2>
+        <div id="names-grid" class="grid">
+            </div>
+    </div>
 
-<div id="record-btn-container" class="hidden" style="margin-top: 40px;">
-<button id="mic-btn-wait" class="mystery-btn">🎤</button>
-<p id="status-text-wait" style="margin-top: 15px; font-size: 16px; color: #58a6ff; font-weight: bold;">ES TU TURNO - Pulsa para hablar</p>
-</div>
-</div>
+    <div id="game-screen" class="hidden">
+        <h3 id="status-display">CONECTADO (متصل)</h3>
+        <p style="font-size: 12px; color: gray;">No salgas de esta pantalla...</p>
+        
+        <div id="play-area" class="hidden" style="margin-top: 50px;">
+            
+            <div id="android-view" class="hidden">
+                <p>¡Es tu turno! (دورك)</p>
+                <button id="mic-btn" class="mic-btn">🎙️</button>
+                <p id="transcript-preview">اضغط وتحدث...</p>
+            </div>
 
-<script>
-const API_KEY = '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';
-let myDocId = null;
-let mediaRecorder;
-let audioChunks = [];
-let isRecording = false;
-let wakeLock = null;
+            <div id="ios-view" class="hidden">
+                <h1>🗣️ ¡HABLA!</h1>
+                <p>System listening manually...</p>
+            </div>
+        </div>
+    </div>
 
-async function requestWakeLock() {
-try {
-if ('wakeLock' in navigator) {
-wakeLock = await navigator.wakeLock.request('screen');
-console.log('Wake Lock active');
-}
-} catch (err) {
-console.error(`${err.name}, ${err.message}`);
-}
-}
+    <div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+        <h1 style="font-size: 50px;">¡TE VI! 😡</h1>
+        <p>Has salido del sistema.</p>
+    </div>
 
-async function loadStudents() {
-try {
-const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
-const grid = document.getElementById('names-grid');
-response.documents.forEach(doc => {
-const btn = document.createElement('button');
-btn.className = 'btn';
-btn.innerText = doc.name;
-if(doc.status === 'online') btn.disabled = true;
-btn.onclick = () => login(doc.$id);
-grid.appendChild(btn);
-});
-} catch (e) { console.error(e); }
-}
-loadStudents();
+    <script>
+        let myDocId = null;
+        let myOS = 'other';
 
-async function login(id) {
-myDocId = id;
-await requestWakeLock();
+        // 1. تحديد نوع الجهاز
+        const ua = navigator.userAgent.toLowerCase();
+        if (ua.indexOf("android") > -1) myOS = 'android';
+        else if (ua.indexOf("iphone") > -1 || ua.indexOf("ipad") > -1) myOS = 'ios';
 
-document.getElementById('login-screen').classList.add('hidden');
-document.getElementById('wait-screen').classList.remove('hidden');
+        // 2. جلب الأسماء
+        async function loadStudents() {
+            const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+            const grid = document.getElementById('names-grid');
+            
+            response.documents.forEach(doc => {
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.innerText = doc.name;
+                // إذا كان شي حد ديجا داخل بهاد السمية، ديزاكتيفيها
+                if(doc.status === 'online') btn.disabled = true;
+                
+                btn.onclick = () => login(doc.$id);
+                grid.appendChild(btn);
+            });
+        }
+        loadStudents();
 
-await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-status: 'online', is_turn: false
-});
+        // 3. الدخول
+        async function login(id) {
+            myDocId = id;
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
 
-startListeners();
-}
+            // تحديث الداتابيز
+            await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                status: 'online',
+                os_type: myOS,
+                cheated: false,
+                is_turn: false
+            });
 
-function startListeners() {
-client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
-const data = response.payload;
-if (data.is_turn) {
-document.getElementById('record-btn-container').classList.remove('hidden');
-document.body.style.backgroundColor = '#1f2428';
-} else {
-document.getElementById('record-btn-container').classList.add('hidden');
-document.body.style.backgroundColor = '#0d1117';
-const btn = document.getElementById('mic-btn-wait');
-btn.classList.remove('recording');
-btn.innerText = "🎤";
-}
-});
-}
+            // تفعيل المراقبة Realtime (باش نعرفو واش نوبتي)
+            startRealtimeListener();
+            // تفعيل المصيدة
+            activateTrap();
+        }
 
-const micBtn = document.getElementById('mic-btn-wait');
-const statusText = document.getElementById('status-text-wait');
+        // 4. الاستماع للأوامر (Realtime)
+        function startRealtimeListener() {
+            client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
+                const data = response.payload;
+                
+                if (data.is_turn) {
+                    // جات نوبتي!
+                    document.getElementById('play-area').classList.remove('hidden');
+                    document.body.style.backgroundColor = '#161b22'; // لون تنبيه خفيف
+                    
+                    if (myOS === 'android') {
+                        document.getElementById('android-view').classList.remove('hidden');
+                    } else {
+                        document.getElementById('ios-view').classList.remove('hidden');
+                    }
+                } else {
+                    // سالات نوبتي
+                    document.getElementById('play-area').classList.add('hidden');
+                    document.getElementById('android-view').classList.add('hidden');
+                    document.getElementById('ios-view').classList.add('hidden');
+                }
+            });
+        }
 
-micBtn.onclick = async () => {
-if (!isRecording) {
-try {
-const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
-mediaRecorder = new MediaRecorder(stream, { mimeType });
-audioChunks = [];
-mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-mediaRecorder.start();
-isRecording = true;
-micBtn.classList.add('recording');
-micBtn.innerText = "⏹";
-statusText.innerText = "GRABANDO... (Habla ahora)";
-} catch (e) { alert("Error de micrófono"); }
-} else {
-mediaRecorder.stop();
-mediaRecorder.onstop = async () => {
-const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-micBtn.classList.remove('recording');
-micBtn.innerText = "⏳";
-statusText.innerText = "PROCESANDO...";
-await sendToAI(blob);
-isRecording = false;
-statusText.innerText = "¡ENVIADO!";
-micBtn.innerText = "✓";
-mediaRecorder.stream.getTracks().forEach(t => t.stop());
-};
-}
-};
+        // 5. Speech to Text (Android Only)
+        const micBtn = document.getElementById('mic-btn');
+        if ('webkitSpeechRecognition' in window) {
+            const recognition = new webkitSpeechRecognition();
+            recognition.lang = 'es-ES';
+            recognition.continuous = false;
 
-async function sendToAI(blob) {
-const formData = new FormData();
-const ext = blob.type.includes("mp4") ? "m4a" : "webm";
-formData.append("file", blob, `recording.${ext}`);
-formData.append("model", "whisper-large-v3");
-formData.append("language", "es");
-formData.append("temperature", "0");
-formData.append("prompt", "Una frase en español.");
+            micBtn.onclick = () => {
+                recognition.start();
+                document.getElementById('transcript-preview').innerText = "Escuchando...";
+            };
 
-try {
-const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-method: "POST",
-headers: { "Authorization": `Bearer ${API_KEY}` },
-body: formData
-});
-const data = await res.json();
-if (data.text) {
-await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-transcript: data.text
-});
-}
-} catch (e) {}
-}
-</script>
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript;
+                document.getElementById('transcript-preview').innerText = text;
+                
+                // إرسال النص للأستاذ
+                databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                    transcript: text
+                });
+            };
+        }
+
+        // 6. المصيدة (Anti-Cheat)
+        function activateTrap() {
+            document.addEventListener("visibilitychange", () => {
+                if (document.hidden) {
+                    // الطالب خرج
+                    document.getElementById('game-screen').classList.add('hidden');
+                    document.getElementById('busted-screen').classList.remove('hidden'); // إظهار الشاشة الحمراء محلياً
+                    
+                    // إخبار الأستاذ
+                    databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                        cheated: true,
+                        status: 'cheated'
+                    });
+                }
+            });
+        }
+    </script>
 </body>
 </html>

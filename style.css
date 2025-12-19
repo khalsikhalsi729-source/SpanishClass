@@ -1,44 +1,41 @@
+/* style.css */
 body {
-    background-color: #0d1117;
+    background-color: #0d1117; /* GitHub Dark Mode */
     color: #c9d1d9;
     font-family: 'Courier New', Courier, monospace;
     text-align: center;
     margin: 0; padding: 20px;
-    overflow-x: hidden;
 }
 
+/* حالة الغشاش */
+.busted {
+    background-color: #ff0000 !important;
+    color: white !important;
+}
+
+.hidden { display: none; }
+
+/* أزرار الأسماء */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
 .btn {
     padding: 15px; background: #238636; color: white; border: none; 
-    border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; margin-bottom: 10px;
-    transition: all 0.3s ease;
+    border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%;
 }
-.btn:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; opacity: 0.6; }
-.btn-action { background: #1f6feb; width: auto; margin: 5px; font-weight: bold;}
-.btn-danger { background: #da3633; }
+.btn:disabled { background: #484f58; cursor: not-allowed; }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
-
-.connected-screen {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh;
+/* وضع التحدث */
+.mic-btn {
+    width: 80px; height: 80px; border-radius: 50%; 
+    background: #1f6feb; color: white; font-size: 30px; border: none;
+    animation: pulse 2s infinite;
 }
-.connected-text { font-size: 40px; color: #238636; animation: float 3s ease-in-out infinite; }
 
-.mystery-btn {
-    width: 150px; height: 150px; border-radius: 50%; 
-    background: linear-gradient(145deg, #1f6feb, #112f55);
-    border: 4px solid #58a6ff; color: white; font-size: 18px; 
-    cursor: pointer; box-shadow: 0 0 20px rgba(31, 111, 235, 0.5);
-    transition: all 0.3s;
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(31, 111, 235, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(31, 111, 235, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(31, 111, 235, 0); }
 }
-.mystery-btn:active { transform: scale(0.95); }
-.mystery-btn.recording { background: #da3633; border-color: red; animation: pulse-red 1s infinite; }
 
-.card { 
-    border: 1px solid #30363d; padding: 15px; border-radius: 8px; background: #161b22; 
-    transition: transform 0.3s; position: relative;
-}
-.card.speaking { border: 2px solid #58a6ff; box-shadow: 0 0 15px #58a6ff; transform: scale(1.05); }
-
-@keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(255, 0, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); } }
-@keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-20px); } 100% { transform: translateY(0px); } }
-.hidden { display: none !important; }
+.card { border: 1px solid #30363d; padding: 10px; margin: 5px; border-radius: 6px; }
+.cheater-alert { border: 2px solid red; background: #3a0000; color: red; }
+.active-turn { border: 2px solid #238636; box-shadow: 0 0 10px #238636; }
