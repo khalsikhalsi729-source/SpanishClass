@@ -18,16 +18,10 @@
 <h1 class="connected-text">CONECTADO/A</h1>
 <p style="margin-top: 20px; font-size: 14px; opacity: 0.7;">Espera tu turno...</p>
 
-<!-- ✅ الزر الجديد: يظهر فقط عندما is_turn = true -->
 <div id="record-btn-container" class="hidden" style="margin-top: 40px;">
 <button id="mic-btn-wait" class="mystery-btn">🎤</button>
 <p id="status-text-wait" style="margin-top: 15px; font-size: 16px; color: #58a6ff; font-weight: bold;">ES TU TURNO - Pulsa para hablar</p>
 </div>
-</div>
-
-<div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-<h1 style="font-size: 60px;">¡TE VI! 😡</h1>
-<p style="font-size: 24px;">Has salido de la aplicación.</p>
 </div>
 
 <script>
@@ -73,22 +67,19 @@ document.getElementById('login-screen').classList.add('hidden');
 document.getElementById('wait-screen').classList.remove('hidden');
 
 await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-status: 'online', cheated: false, is_turn: false
+status: 'online', is_turn: false
 });
 
 startListeners();
-activateTrap();
 }
 
 function startListeners() {
 client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
 const data = response.payload;
 if (data.is_turn) {
-// ✅ يظهر الزر فقط في شاشة الانتظار
 document.getElementById('record-btn-container').classList.remove('hidden');
 document.body.style.backgroundColor = '#1f2428';
 } else {
-// ✅ يخفي الزر إذا انتهى الدور
 document.getElementById('record-btn-container').classList.add('hidden');
 document.body.style.backgroundColor = '#0d1117';
 const btn = document.getElementById('mic-btn-wait');
@@ -153,20 +144,6 @@ transcript: data.text
 });
 }
 } catch (e) {}
-}
-
-function activateTrap() {
-document.addEventListener("visibilitychange", async () => {
-if (document.visibilityState === 'visible') {
-await requestWakeLock();
-} else {
-document.getElementById('wait-screen').classList.add('hidden');
-document.getElementById('busted-screen').classList.remove('hidden');
-databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-cheated: true, status: 'cheated'
-});
-}
-});
 }
 </script>
 </body>
