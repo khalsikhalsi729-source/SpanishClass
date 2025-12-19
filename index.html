@@ -3,23 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Estudiante</title>
+    <title>Estudiantes</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
     <style>
-        /* زر التحديث الصغير */
-        .refresh-icon {
-            position: fixed; top: 10px; right: 10px;
-            background: rgba(255,255,255,0.1); border: 1px solid #30363d;
-            color: #c9d1d9; padding: 8px 12px; border-radius: 20px;
-            font-size: 12px; cursor: pointer; z-index: 1000;
+        /* 1. تصميم زر Refresh الجديد */
+        .refresh-btn {
+            position: fixed; top: 20px; right: 20px;
+            background: rgba(22, 27, 34, 0.9);
+            border: 2px solid #58a6ff; /* إطار أزرق واضح */
+            color: #58a6ff;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 18px; /* خط كبير */
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
+        }
+        .refresh-btn:active { transform: scale(0.95); background: #58a6ff; color: white; }
+
+        /* 2. تصميم الدائرة الكبيرة (المايكروفون) */
+        .big-mic-circle {
+            width: 220px; height: 220px; /* دائرة كبيرة */
+            border-radius: 50%;
+            border: 6px solid rgba(255,255,255,0.2);
+            background: linear-gradient(145deg, #1f6feb, #112f55); /* أزرق */
+            color: white;
+            font-size: 24px; font-weight: bold;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(31, 111, 235, 0.4);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent; /* إخفاء وميض النقر */
+        }
+        
+        /* تأثير الضغط */
+        .big-mic-circle:active { transform: scale(0.95); }
+
+        /* 3. حالة التسجيل (الحمراء) */
+        .big-mic-circle.recording {
+            background: linear-gradient(145deg, #da3633, #8a1c1c); /* أحمر */
+            border-color: rgba(255, 0, 0, 0.5);
+            box-shadow: 0 0 50px rgba(218, 54, 51, 0.6);
+            animation: pulse-red 1.5s infinite; /* نبض */
+            font-size: 20px; /* تصغير الخط قليلاً لكلمة Escuchando */
+        }
+
+        /* 4. حالة المعالجة (الرمادية) */
+        .big-mic-circle.processing {
+            background: #30363d;
+            border-color: #8b949e;
+            cursor: wait;
+        }
+
+        @keyframes pulse-red {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(218, 54, 51, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 30px rgba(218, 54, 51, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(218, 54, 51, 0); }
         }
     </style>
 </head>
 <body>
 
-    <button onclick="checkMyStatus()" class="refresh-icon">🔄 Refresh</button>
+    <button onclick="checkMyStatus()" class="refresh-btn">
+        🔄 
+    </button>
 
     <div id="login-screen">
         <h2>Elige tu nombre<br><span style="font-size: 0.6em; color: gray;">Selecciona tu cuenta</span></h2>
@@ -33,11 +87,17 @@
     </div>
 
     <div id="game-screen" class="hidden" style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-        <h2 style="color: #58a6ff; margin-bottom: 30px;">¡ES TU TURNO!</h2>
-        <div id="btn-container">
-            <button id="mic-btn" class="mystery-btn">🎤 HABLAR</button>
-            <p id="status-text" style="margin-top: 20px; font-weight: bold; color: #c9d1d9;">Pulsa para hablar</p>
-        </div>
+        
+        <h2 style="color: #58a6ff; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 3px;">¡Es tu turno!</h2>
+        
+        <button id="mic-btn" class="big-mic-circle">
+            <span style="font-size: 40px; margin-bottom: 10px;">🎤</span>
+            HABLAR
+        </button>
+
+        <p id="status-text" style="margin-top: 30px; font-weight: bold; color: #8b949e; font-size: 14px;">
+            Toca el círculo para hablar
+        </p>
     </div>
 
     <div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
@@ -81,7 +141,6 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
-            // Set Online
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online', cheated: false, is_turn: false, transcript: "" 
             });
@@ -89,43 +148,38 @@
             startListeners();
             activateTrap();
         }
-
-        // --- New Logic: Realtime + Manual Check ---
         
         function startListeners() {
-            // 1. Realtime Listener
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 handleStatusChange(response.payload);
             });
         }
 
-        // الدالة اليدوية (مهمة جداً)
         async function checkMyStatus() {
             if(!myDocId) return;
             try {
+                // تأثير بصري عند الضغط على Refresh
+                const btn = document.querySelector('.refresh-btn');
+                const originalText = btn.innerText;
+                btn.innerText = "⏳...";
+                
                 const doc = await databases.getDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId);
                 handleStatusChange(doc);
-                // تأثير بصري باش يعرف راه دار ريفرش
-                const dot = document.getElementById('pulse-dot');
-                dot.innerText = "🔄";
-                setTimeout(() => dot.innerText = "🟢", 1000);
+                
+                setTimeout(() => btn.innerText = originalText, 500);
             } catch(e) { console.error(e); }
         }
 
         function handleStatusChange(data) {
-            // Anti-Cheat Check First
             if (data.cheated) {
                 showScreen('busted-screen');
                 return;
             }
-
-            // Turn Logic
             if (data.is_turn === true) {
                 showScreen('game-screen');
-                document.body.style.backgroundColor = '#161b22';
+                document.body.style.backgroundColor = '#0d1117';
             } else {
                 showScreen('wait-screen');
-                document.body.style.backgroundColor = '#0d1117';
                 resetMicButton();
             }
         }
@@ -137,12 +191,13 @@
             document.getElementById(screenId).classList.remove('hidden');
         }
 
-        // --- Microphone Logic ---
+        // --- Logic Microphone Updated ---
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
         micBtn.onclick = async () => {
             if (!isRecording) {
+                // START RECORDING
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
@@ -151,19 +206,28 @@
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.start();
                     isRecording = true;
+                    
+                    // تغيير الشكل للدائرة الحمراء
                     micBtn.classList.add('recording');
-                    micBtn.innerText = "🛑"; 
-                    statusText.innerText = "Escuchando... (Stop)";
+                    micBtn.innerHTML = "Escuchando..."; // الكتابة داخل الدائرة
+                    statusText.innerText = "Toca para terminar"; // التوجيه تحت الدائرة
+
                 } catch (e) { alert("Mic Error"); }
             } else {
+                // STOP RECORDING
                 if(mediaRecorder) {
                     mediaRecorder.stop();
                     mediaRecorder.onstop = async () => {
                         const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                        
+                        // حالة المعالجة
                         micBtn.classList.remove('recording');
-                        micBtn.innerText = "⏳";
-                        statusText.innerText = "Procesando...";
+                        micBtn.classList.add('processing');
+                        micBtn.innerHTML = "⏳<br>Enviando...";
+                        statusText.innerText = "Procesando respuesta...";
+
                         await sendToAI(blob);
+                        
                         isRecording = false;
                         mediaRecorder.stream.getTracks().forEach(t => t.stop());
                     };
@@ -172,9 +236,9 @@
         };
 
         function resetMicButton() {
-            micBtn.classList.remove('recording');
-            micBtn.innerText = "🎤 HABLAR";
-            statusText.innerText = "Pulsa para hablar";
+            micBtn.className = 'big-mic-circle'; // Reset classes
+            micBtn.innerHTML = '<span style="font-size: 40px; margin-bottom: 10px;">🎤</span>HABLAR';
+            statusText.innerText = "Toca el círculo para hablar";
             isRecording = false;
         }
 
@@ -192,14 +256,19 @@
                 });
                 const data = await res.json();
                 if (data.text) {
-                    statusText.innerText = "¡Enviado!";
-                    micBtn.innerText = "✓";
+                    micBtn.classList.remove('processing');
+                    micBtn.innerHTML = "✓<br>Listo";
+                    statusText.innerText = "¡Respuesta enviada!";
+                    
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, { transcript: data.text });
                 }
-            } catch (e) { statusText.innerText = "Error"; }
+            } catch (e) { 
+                micBtn.innerHTML = "⚠️<br>Error";
+                statusText.innerText = "Error de conexión"; 
+            }
         }
 
-        // --- Anti-Cheat ---
+        // Anti-Cheat
         function activateTrap() {
             document.addEventListener("visibilitychange", () => {
                 if (document.hidden) {
@@ -209,7 +278,7 @@
             });
         }
         
-        // تشغيل التحقق كل 5 ثواني احتياطاً (Auto-Poll)
+        // Auto-Poll (كل 5 ثواني)
         setInterval(() => {
             if(myDocId && !document.hidden) checkMyStatus();
         }, 5000);
