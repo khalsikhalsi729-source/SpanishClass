@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clase de Español</title>
+    <title>Estudiantes</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
@@ -11,25 +11,30 @@
 <body>
 
     <div id="login-screen">
-        <h2>Selecciona tu nombre<br><span style="font-size: 0.6em; color: gray;">ELIGE TU NOMBRE</span></h2>
+        <h2>Elige tu nombre<br><span style="font-size: 0.6em; color: gray;">Selecciona tu cuenta</span></h2>
         <div id="names-grid" class="grid"></div>
     </div>
 
     <div id="wait-screen" class="hidden connected-screen">
-        <h1 class="connected-text">conectado/a</h1>
-        <p style="margin-top: 20px; font-size: 12px; opacity: 0.6;">Espera tu turno...</p>
+        <h1 class="connected-text">Conectado</h1>
+        <p style="margin-top: 20px; font-size: 14px; opacity: 0.6;">Espera tu turno...</p>
+        <div style="margin-top: 20px;">🟢</div>
     </div>
 
-    <div id="game-screen" class="hidden" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
+    <div id="game-screen" class="hidden" style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        
+        <h2 style="color: #58a6ff; margin-bottom: 30px;">¡ES TU TURNO!</h2>
+        
         <div id="btn-container">
-            <button id="mic-btn" class="mystery-btn">HAZ CLIC</button>
-            <p id="status-text" style="margin-top: 20px; font-weight: bold;">اضغط للتحدث</p>
+            <button id="mic-btn" class="mystery-btn">🎤 HABLAR</button>
+            <p id="status-text" style="margin-top: 20px; font-weight: bold; color: #c9d1d9;">Pulsa para hablar</p>
         </div>
+
     </div>
 
     <div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
         <h1 style="font-size: 60px;">¡TE VI! 😡</h1>
-        <p style="font-size: 20px;">Has salido del sistema.</p>
+        <p style="font-size: 20px;">Has salido de la aplicación.</p>
     </div>
 
     <script>
@@ -41,34 +46,37 @@
         let audioChunks = [];
         let isRecording = false;
 
+        // Cargar estudiantes
         async function loadStudents() {
             try {
                 const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
                 const grid = document.getElementById('names-grid');
+                grid.innerHTML = ''; 
+                
                 response.documents.forEach(doc => {
                     const btn = document.createElement('button');
                     btn.className = 'btn';
                     btn.innerText = doc.name;
-                    // إذا كان أونلاين، الزر كيولي ديزابلي
-                    if(doc.status === 'online') btn.disabled = true;
+                    // Disable if online
+                    if(doc.status === 'online') {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    }
                     btn.onclick = () => login(doc.$id);
                     grid.appendChild(btn);
                 });
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Error loading students:", e); }
         }
         loadStudents();
 
+        // Login
         async function login(id) {
             myDocId = id;
             
-            // طلب Wake Lock باش الشاشة ما طفاش بوحدها
-            try {
-                if ('wakeLock' in navigator) {
-                    await navigator.wakeLock.request('screen');
-                }
-            } catch (err) { console.log("Wake Lock not supported"); }
+            // Wake Lock
+            try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (err) {}
 
-            // UI updates
+            // UI Update
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
@@ -76,41 +84,48 @@
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online',
                 cheated: false,
-                is_turn: false
+                is_turn: false,
+                transcript: "" 
             });
 
             startListeners();
             activateTrap();
         }
 
+        // Listener Realtime
         function startListeners() {
+            console.log("Listening for turn updates...");
+            
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
                 const data = response.payload;
                 
-                // التحكم في الأدوار
-                if (data.is_turn) {
+                if (data.is_turn === true) {
+                    // Turno activo
                     document.getElementById('wait-screen').classList.add('hidden');
                     document.getElementById('game-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#1f2428';
+                    document.body.style.backgroundColor = '#161b22'; 
                 } else {
+                    // Turno inactivo
                     document.getElementById('game-screen').classList.add('hidden');
-                    document.getElementById('wait-screen').classList.remove('hidden');
+                    if (!document.getElementById('busted-screen').classList.contains('hidden')) {
+                        // Keep busted screen
+                    } else {
+                        document.getElementById('wait-screen').classList.remove('hidden');
+                    }
                     document.body.style.backgroundColor = '#0d1117';
-                    // Reset Button
-                    const btn = document.getElementById('mic-btn');
-                    btn.classList.remove('recording');
-                    btn.innerText = "HAZ CLIC";
+                    
+                    resetMicButton();
                 }
             });
         }
 
-        // === منطق التسجيل (خلفي) ===
+        // === Logic Micrófono ===
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
         micBtn.onclick = async () => {
             if (!isRecording) {
-                // بدء التسجيل
+                // START RECORDING
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
@@ -121,32 +136,46 @@
                     mediaRecorder.start();
                     isRecording = true;
 
-                    // تغيير شكل الزر فقط (بدون أيقونة مايك)
+                    // UI Updates
                     micBtn.classList.add('recording');
-                    micBtn.innerText = "⏳";
-                    statusText.innerText = "Escuchando... (يتحدث)";
+                    micBtn.innerText = "🛑"; 
+                    statusText.innerText = "Escuchando... (pulsa para terminar)";
 
-                } catch (e) { alert("Error Microphone"); }
+                } catch (e) { 
+                    alert("¡Por favor, permite el acceso al micrófono!"); 
+                    console.error(e);
+                }
             } else {
-                // إيقاف التسجيل
-                mediaRecorder.stop();
-                mediaRecorder.onstop = async () => {
-                    const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                    micBtn.classList.remove('recording');
-                    micBtn.innerText = "✓";
-                    statusText.innerText = "Enviando... (إرسال)";
-                    
-                    // إرسال لـ Groq
-                    await sendToAI(blob);
-                    
-                    isRecording = false;
-                    statusText.innerText = "Listo.";
-                    // نوقف الميكروفون
-                    mediaRecorder.stream.getTracks().forEach(t => t.stop());
-                };
+                // STOP RECORDING
+                if(mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                        
+                        micBtn.classList.remove('recording');
+                        micBtn.innerText = "⏳";
+                        statusText.innerText = "Procesando...";
+                        
+                        // Send to Groq
+                        await sendToAI(blob);
+                        
+                        isRecording = false;
+                        
+                        // Stop tracks
+                        mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                    };
+                }
             }
         };
 
+        function resetMicButton() {
+            micBtn.classList.remove('recording');
+            micBtn.innerText = "🎤 HABLAR";
+            statusText.innerText = "Pulsa para hablar";
+            isRecording = false;
+        }
+
+        // Send Audio to Groq
         async function sendToAI(blob) {
             const formData = new FormData();
             const ext = blob.type.includes("mp4") ? "m4a" : "webm";
@@ -154,7 +183,6 @@
             formData.append("model", "whisper-large-v3");
             formData.append("language", "es"); 
             formData.append("temperature", "0");
-            formData.append("prompt", "Una frase en español.");
 
             try {
                 const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
@@ -162,31 +190,44 @@
                     headers: { "Authorization": `Bearer ${API_KEY}` },
                     body: formData
                 });
+                
+                if(!res.ok) throw new Error("API Error");
+
                 const data = await res.json();
                 
                 if (data.text) {
-                    // نرسل النص للداتابيز، ولكن التلميذ ما كيشوف والو
+                    statusText.innerText = "¡Enviado!";
+                    micBtn.innerText = "✓";
+                    
+                    // Update Database
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                         transcript: data.text
                     });
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { 
+                console.error(e); 
+                statusText.innerText = "Error del sistema";
+                micBtn.innerText = "⚠️";
+            }
         }
 
-        // === المصيدة (Anti-Cheat) ===
+        // === Anti-Cheat (Visibilidad) ===
         function activateTrap() {
             document.addEventListener("visibilitychange", () => {
                 if (document.hidden) {
-                    // فقط إذا خرج من التاب (الهاتف طافي ما كيحسبش Hidden في أغلب المتصفحات الحديثة مع WakeLock)
-                    document.getElementById('wait-screen').classList.add('hidden');
-                    document.getElementById('game-screen').classList.add('hidden');
-                    document.getElementById('busted-screen').classList.remove('hidden');
-                    
-                    databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                        cheated: true,
-                        status: 'cheated' // نبدلو الحالة باش يبان فالداشبورد
-                    });
+                    triggerCheat();
                 }
+            });
+        }
+
+        function triggerCheat() {
+            document.getElementById('wait-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('busted-screen').classList.remove('hidden');
+            
+            databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
+                cheated: true,
+                status: 'cheated'
             });
         }
     </script>
