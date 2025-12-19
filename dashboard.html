@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
     <style>
-        /* تنسيقات خاصة داخل الصفحة لضمان عدم تعارضها */
         .control-bar { display: flex; gap: 10px; background: #161b22; padding: 15px; border-bottom: 2px solid #30363d; flex-wrap: wrap; }
         .mode-title { color: #58a6ff; font-weight: bold; font-size: 24px; text-transform: uppercase; margin-right: auto; align-self: center; }
         
@@ -24,7 +23,6 @@
         .history-table th, .history-table td { border: 1px solid #30363d; padding: 15px; text-align: left; }
         .history-table th { background: #21262d; color: #58a6ff; }
         
-        /* تنسيق المجموعات الجديد */
         #grouping-canvas { position: relative; height: 75vh; width: 100%; margin-top: 10px; }
         .group-box {
             position: absolute; width: 30%; height: 50%; border: 3px solid;
@@ -115,17 +113,16 @@ const GROUPS = {
 
 let studentsData = [];
 let currentSpeaker = null;
-let usedStudentIds = new Set(); // لتتبع من شارك
-let lastGroup = null; // لتتبع آخر مجموعة شاركت
+let usedStudentIds = new Set();
+let lastGroup = null;
 
 async function init() {
     const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
     studentsData = res.documents;
     
-    // استرجاع الحالة السابقة إذا تم تحديث الصفحة
+    // استرجاع السجل
     studentsData.forEach(s => {
         if(s.is_turn && s.transcript) {
-            // إضافة للسجل إذا كان لديه نص ولم يعد دوره
              addToHistory(s.name, GROUPS[s.name] || '?', s.transcript);
              usedStudentIds.add(s.$id);
         }
@@ -139,15 +136,13 @@ async function init() {
         if (idx !== -1) studentsData[idx] = doc;
         renderMonitor();
 
-        // إذا وصل النص للمتحدث الحالي
         if (currentSpeaker && currentSpeaker.$id === doc.$id && doc.transcript) {
             currentSpeaker.transcript = doc.transcript;
             document.getElementById('loading-transcript').classList.add('hidden');
             document.getElementById('reveal-btn-current').classList.remove('hidden');
             document.getElementById('speaker-text-current').dataset.text = doc.transcript;
-            document.getElementById('next-btn').disabled = false; // السماح بالمرور للتالي
+            document.getElementById('next-btn').disabled = false;
             
-            // تسجيل في الهيستوري تلقائياً (مخفي)
             addToHistory(doc.name, GROUPS[doc.name] || '?', doc.transcript);
         }
     });
@@ -158,18 +153,18 @@ function renderMonitor() {
     const container = document.getElementById('monitor-view');
     container.innerHTML = '';
     studentsData.forEach(s => {
+        // ✅ التغيير المطلوب: لا تظهر الطالب إلا إذا كان أونلاين
+        if (s.status !== 'online') return;
+
         const card = document.createElement('div');
         card.className = `card ${s.is_turn ? 'speaking' : ''}`;
-        card.style.opacity = s.status === 'online' ? '1' : '0.5';
         card.innerHTML = `
             <h3>${s.name}</h3>
-            <p>${s.status === 'online' ? '🟢 ONLINE' : '⚫ OFFLINE'}</p>
+            <p>🟢 ONLINE</p>
         `;
         container.appendChild(card);
     });
 }
-
-// --- LOGIC: SELECCIÓN DE TURNOS (ROULETTE & RULES) ---
 
 async function nextTurn() {
     const eligible = studentsData.filter(s => s.status === 'online' && !usedStudentIds.has(s.$id));
@@ -179,23 +174,18 @@ async function nextTurn() {
         return;
     }
 
-    // إخفاء القديم
     if (currentSpeaker) {
         databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeaker.$id, { is_turn: false });
     }
 
-    // تحضير الواجهة
     document.getElementById('active-turn-card').classList.remove('hidden');
     document.getElementById('reveal-btn-current').classList.add('hidden');
     document.getElementById('speaker-text-current').innerText = "";
     document.getElementById('speaker-text-current').className = "transcript-hidden";
-    document.getElementById('loading-transcript').classList.remove('hidden'); // إظهار الانتظار
-    document.getElementById('next-btn').disabled = true; // منع الضغط مرتين
+    document.getElementById('loading-transcript').classList.remove('hidden');
+    document.getElementById('next-btn').disabled = true;
 
-    // اختيار الفائز (تطبيق الشروط)
     let candidates = eligible;
-    
-    // شرط: عدم تكرار نفس المجموعة إذا أمكن
     if (lastGroup !== null) {
         const differentGroupCandidates = eligible.filter(s => GROUPS[s.name] !== lastGroup);
         if (differentGroupCandidates.length > 0) {
@@ -204,16 +194,12 @@ async function nextTurn() {
     }
 
     const winner = candidates[Math.floor(Math.random() * candidates.length)];
-    
-    // تشغيل الروليت (Animation)
     await spinRoulette(eligible, winner);
 
-    // بعد التوقف
     currentSpeaker = winner;
     lastGroup = GROUPS[winner.name];
     usedStudentIds.add(winner.$id);
     
-    // تفعيل التلميذ في قاعدة البيانات
     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, winner.$id, { is_turn: true, transcript: "" });
 }
 
@@ -221,21 +207,21 @@ function spinRoulette(pool, winner) {
     return new Promise(resolve => {
         const nameDisplay = document.getElementById('speaker-name');
         let counter = 0;
-        const totalSpins = 20; // عدد مرات التغيير قبل التوقف
+        const totalSpins = 20;
         
         const interval = setInterval(() => {
             const randomName = pool[Math.floor(Math.random() * pool.length)].name;
             nameDisplay.innerText = randomName;
-            nameDisplay.style.color = "#8b949e"; // لون رمادي أثناء الدوران
+            nameDisplay.style.color = "#8b949e";
             counter++;
 
             if (counter >= totalSpins) {
                 clearInterval(interval);
                 nameDisplay.innerText = winner.name;
-                nameDisplay.style.color = "#58a6ff"; // اللون الأزرق للفائز
+                nameDisplay.style.color = "#58a6ff";
                 resolve();
             }
-        }, 100); // سرعة الدوران (ms)
+        }, 100);
     });
 }
 
@@ -254,25 +240,19 @@ function addToHistory(name, group, text) {
         <td>Grupo ${group}</td>
         <td>"${text}"</td>
     `;
-    // إضافة في البداية
     tbody.insertBefore(row, tbody.firstChild);
 }
-
-// --- LOGIC: GROUPS UX ---
 
 function startGroupingAnimation() {
     const pool = document.getElementById('pool-area');
     const onlineStudents = studentsData.filter(s => s.status === 'online');
     
-    // 1. تنظيف
     pool.innerHTML = '';
     [1, 2, 3].forEach(i => {
         const box = document.getElementById(`box-${i}`);
-        // مسح الأسماء فقط وترك العنوان
         Array.from(box.children).forEach(c => { if(c.tagName !== 'H3') c.remove(); });
     });
 
-    // 2. وضع الأسماء في الأسفل (Pool)
     onlineStudents.forEach(s => {
         const tag = document.createElement('div');
         tag.className = 'name-tag';
@@ -281,38 +261,32 @@ function startGroupingAnimation() {
         pool.appendChild(tag);
     });
 
-    // 3. التحريك بعد مهلة قصيرة
     setTimeout(() => {
         onlineStudents.forEach(s => {
             const tag = document.getElementById(`tag-${s.$id}`);
-            const groupNum = GROUPS[s.name] || 2; // Default group 2
+            const groupNum = GROUPS[s.name] || 2;
             const targetBox = document.getElementById(`box-${groupNum}`);
             
-            // حساب الإحداثيات للانتقال
             const startRect = tag.getBoundingClientRect();
             const targetRect = targetBox.getBoundingClientRect();
             
-            // نقل العنصر ليكون absolute بالنسبة للشاشة للحركة
             tag.style.position = 'fixed';
             tag.style.left = startRect.left + 'px';
             tag.style.top = startRect.top + 'px';
             tag.style.margin = 0;
 
-            // التحرك نحو الصندوق
-            // حساب موقع عشوائي قليلاً داخل الصندوق لعدم التطابق التام
             const offsetX = 20;
-            const offsetY = 50 + (targetBox.children.length * 40); // ترتيب عمودي
+            const offsetY = 50 + (targetBox.children.length * 40);
 
             setTimeout(() => {
                 tag.style.left = (targetRect.left + offsetX) + 'px';
                 tag.style.top = (targetRect.top + offsetY) + 'px';
                 
-                // بعد انتهاء الحركة، نقله فعلياً داخل الـ DOM الخاص بالصندوق
                 setTimeout(() => {
                     tag.style.position = 'static';
                     tag.style.transform = 'none';
                     targetBox.appendChild(tag);
-                }, 1000); // نفس مدة الـ transition في CSS
+                }, 1000);
             }, 100);
         });
     }, 500);
@@ -335,7 +309,6 @@ function switchMode(mode) {
 
 async function resetAll() {
     if(confirm("¿Reiniciar todo el sistema?")) {
-        // إعادة تعيين كل شيء
         studentsData.forEach(s => {
             databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { 
                 status: 'offline', 

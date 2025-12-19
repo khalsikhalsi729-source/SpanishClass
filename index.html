@@ -21,20 +21,19 @@
 
     <div id="game-screen" class="hidden" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
         <div id="btn-container">
-            <button id="mic-btn" class="mystery-btn">PULSA AQUÍ</button>
+            <button id="mic-btn" class="mystery-btn">🎤 HABLAR</button>
             <p id="status-text" style="margin-top: 20px; font-weight: bold; font-size: 18px;">ES TU TURNO</p>
         </div>
     </div>
 
     <script>
-        const API_KEY = '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';
+        const API_KEY = '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'; // Groq API Key
         let myDocId = null;
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
         let wakeLock = null;
 
-        // Anti-Sleep Only (بدون مراقبة)
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
@@ -61,12 +60,11 @@
 
         async function login(id) {
             myDocId = id;
-            await requestWakeLock(); // إبقاء الشاشة شغالة فقط
+            await requestWakeLock();
             
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
-            // لاحظ: تم حذف cheated: false لأنه لم يعد موجوداً
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online', is_turn: false
             });
@@ -85,9 +83,11 @@
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('wait-screen').classList.remove('hidden');
                     document.body.style.backgroundColor = '#0d1117';
+                    // Reset Button
                     const btn = document.getElementById('mic-btn');
                     btn.classList.remove('recording');
-                    btn.innerText = "PULSA AQUÍ";
+                    btn.innerText = "🎤 HABLAR";
+                    isRecording = false;
                 }
             });
         }
@@ -96,7 +96,9 @@
         const statusText = document.getElementById('status-text');
 
         micBtn.onclick = async () => {
+            // ✅ منطق الزر: كليك للبدء، كليك للإيقاف
             if (!isRecording) {
+                // --- START RECORDING ---
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
@@ -105,21 +107,30 @@
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.start();
                     isRecording = true;
+                    
+                    // تحديث الشكل
                     micBtn.classList.add('recording');
-                    micBtn.innerText = "⏹";
-                    statusText.innerText = "GRABANDO... (Habla ahora)";
+                    micBtn.innerText = "⏹ DETENER";
+                    statusText.innerText = "GRABANDO...";
                 } catch (e) { alert("Error de micrófono"); }
+
             } else {
+                // --- STOP & SEND ---
                 mediaRecorder.stop();
                 mediaRecorder.onstop = async () => {
                     const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                    
                     micBtn.classList.remove('recording');
-                    micBtn.innerText = "⏳";
+                    micBtn.innerText = "⏳ ENVIANDO...";
                     statusText.innerText = "PROCESANDO...";
+                    
                     await sendToAI(blob);
+                    
                     isRecording = false;
-                    statusText.innerText = "¡ENVIADO!";
-                    micBtn.innerText = "✓";
+                    micBtn.innerText = "✓ LISTO";
+                    statusText.innerText = "¡RESPUESTA ENVIADA!";
+                    
+                    // إيقاف استخدام الميكروفون
                     mediaRecorder.stream.getTracks().forEach(t => t.stop());
                 };
             }
