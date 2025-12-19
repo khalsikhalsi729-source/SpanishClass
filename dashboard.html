@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Teacher Dashboard Pro</title>
+    <title>Panel del Profesor</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
@@ -119,13 +119,13 @@
         <div class="mode-title">
             <span id="mode-icon">📊</span> 
             <span id="mode-title">MONITOR</span>
-            <span id="connection-status" class="connection-status">Connecting...</span>
+            <span id="connection-status" class="connection-status">Conectando...</span>
         </div>
         <div>
             <button class="btn btn-action" onclick="switchMode('monitor')">📊 Monitor</button>
             <button class="btn btn-action" onclick="switchMode('turn')">🎰 Casino</button>
             <button class="btn btn-action" onclick="switchMode('group')">🧩 Grupos</button>
-            <button class="btn btn-danger" onclick="resetAll()">🔄 RESET</button>
+            <button class="btn btn-danger" onclick="resetAll()">🔄 REINICIAR</button>
         </div>
     </div>
 
@@ -143,7 +143,7 @@
                 <h1 id="speaker-name" class="active-speaker">...</h1>
                 
                 <div id="transcript-area" class="hidden">
-                    <button class="btn btn-reveal" style="background: #e3b341; color: black; font-weight: bold;" onclick="revealText()">👁️</button>
+                    <button class="btn btn-reveal" style="background: #e3b341; color: black; font-weight: bold;" onclick="revealText()">👁️ VER RESPUESTA</button>
                     <div id="speaker-text" style="display: none;" class="transcript-revealed"></div>
                 </div>
             </div>
@@ -153,7 +153,7 @@
     <div id="group-view" class="hidden">
         <div style="text-align: center; padding: 10px; background: #0d1117;">
             <button class="btn btn-action" onclick="prepareGrouping()">1. PREPARAR</button>
-            <button class="btn btn-action" onclick="executeDistribution()">2. DISTRIBUIR (GO!)</button>
+            <button class="btn btn-action" onclick="executeDistribution()">2. DISTRIBUIR</button>
         </div>
         
         <div id="grouping-canvas">
@@ -181,20 +181,20 @@
 
         // --- Init with Error Handling ---
         async function init() {
-            updateConnectionStatus("Connecting...", "gray");
+            updateConnectionStatus("Conectando...", "gray");
             try {
                 // Fetch initial data
                 const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
                 studentsData = res.documents;
                 renderMonitor();
-                updateConnectionStatus("Connected ●", "active-connection");
+                updateConnectionStatus("Conectado ●", "active-connection");
                 
                 startRealtime();
 
             } catch (e) {
                 console.error("Init Error:", e);
                 updateConnectionStatus("Error: " + e.message, "error-connection");
-                alert("مشكل في الاتصال بقاعدة البيانات. تأكد من Project ID و Permissions.");
+                alert("Error de conexión a la base de datos. Verifica el ID del Proyecto y los Permisos.");
             }
         }
 
@@ -254,11 +254,11 @@
                 // تحديد شكل الـ Badge
                 let badgeHTML = '';
                 if(isCheated) {
-                    badgeHTML = `<div class="cheated-badge">🚫 BUSTED</div>`;
+                    badgeHTML = `<div class="cheated-badge">🚫 DETECTADO</div>`;
                 } else if(isOnline) {
-                    badgeHTML = `<div class="status-badge online"><div class="pulse-dot"></div> ONLINE</div>`;
+                    badgeHTML = `<div class="status-badge online"><div class="pulse-dot"></div> EN LÍNEA</div>`;
                 } else {
-                    badgeHTML = `<div class="status-badge offline">⚫ OFFLINE</div>`;
+                    badgeHTML = `<div class="status-badge offline">⚫ DESCONECTADO</div>`;
                     card.style.opacity = "0.6"; // تغميق اللي غايب
                 }
 
@@ -283,7 +283,7 @@
             }
 
             const eligible = studentsData.filter(s => s.status === 'online' && !s.cheated);
-            if (eligible.length === 0) { alert("No active students!"); return; }
+            if (eligible.length === 0) { alert("¡No hay estudiantes activos!"); return; }
 
             isSpinning = true;
             document.getElementById('next-turn-btn').disabled = true;
@@ -323,7 +323,7 @@
 
         async function revealText() {
             const textBox = document.getElementById('speaker-text');
-            textBox.innerText = "⏳ Fetching...";
+            textBox.innerText = "⏳ Cargando...";
             textBox.style.display = 'block';
 
             try {
@@ -333,9 +333,9 @@
                     textBox.innerText = `"${doc.transcript}"`;
                     textBox.className = "transcript-revealed";
                 } else {
-                    textBox.innerText = "⚠️ No data yet.";
+                    textBox.innerText = "⚠️ Aún no hay datos.";
                 }
-            } catch(e) { textBox.innerText = "Error loading text."; }
+            } catch(e) { textBox.innerText = "Error al cargar el texto."; }
         }
 
         // --- 3. Groups Logic ---

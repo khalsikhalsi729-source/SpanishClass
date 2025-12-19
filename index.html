@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Estudiante Login</title>
+    <title>Acceso de Estudiante</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
@@ -13,7 +13,7 @@
         body {
             background-color: #0d1117;
             color: #c9d1d9;
-            font-family: 'Poppins', sans-serif; /* خط زوين */
+            font-family: 'Poppins', sans-serif;
             text-align: center;
             margin: 0; padding: 20px;
             min-height: 100vh;
@@ -37,7 +37,6 @@
         
         #names-grid {
             display: grid;
-            /* أوتوماتيك: كيتأقلم مع عرض الشاشة (من 2 حتى 4 أعمدة) */
             grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
             gap: 12px;
             padding-bottom: 40px;
@@ -56,11 +55,10 @@
             animation: slideUp 0.4s ease backwards;
         }
         
-        /* تحسين للموبايل: الـ Active State */
         .name-card:active { transform: scale(0.96); background: #1f2428; }
         
         .avatar-circle {
-            width: 45px; height: 45px; /* صغرتها شوية */
+            width: 45px; height: 45px;
             background: linear-gradient(135deg, #1f6feb, #0d419d);
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
@@ -88,7 +86,6 @@
         }
 
         .big-mic-circle {
-            /* الحيلة هنا: العرض نسبي (55% من الشاشة) ولكن عندو حد أقصى (220px) */
             width: min(220px, 55vw); 
             height: min(220px, 55vw);
             border-radius: 50%;
@@ -99,9 +96,7 @@
             transition: all 0.3s; cursor: pointer; user-select: none;
         }
         
-        /* أيقونة المايك */
         .mic-icon { font-size: clamp(30px, 8vw, 40px); margin-bottom: 5px; } 
-        /* نص HABLAR */
         .mic-text { font-size: clamp(14px, 4vw, 18px); font-weight: bold; letter-spacing: 1px; }
 
         .big-mic-circle:active { transform: scale(0.95); }
@@ -117,7 +112,7 @@
         @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse-red { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(218, 54, 51, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(218, 54, 51, 0); } 100% { transform: scale(1); } }
 
-        /* Media Queries للهواتف الصغيرة جداً (iPhone SE / Fold closed) */
+        /* Media Queries للهواتف الصغيرة جداً */
         @media (max-width: 360px) {
             #names-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
             .avatar-circle { width: 35px; height: 35px; font-size: 16px; }
@@ -264,7 +259,7 @@
                     micBtn.classList.add('recording');
                     micBtn.innerHTML = '<span class="mic-icon">🔴</span><span class="mic-text">Escuchando...</span>';
                     statusText.innerText = "Toca para terminar";
-                } catch (e) { alert("Mic Error"); }
+                } catch (e) { alert("Error de Micrófono"); }
             } else {
                 if(mediaRecorder) {
                     mediaRecorder.stop();
