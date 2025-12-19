@@ -2,29 +2,140 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Teacher Dashboard </title>
+    <title>Teacher Dashboard Pro</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
+    <style>
+        /* --- تحسينات القائمة (UX/UI List) --- */
+        .dashboard-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+            gap: 20px; 
+            padding: 20px;
+        }
+
+        /* تصميم الكارت */
+        .student-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+
+        /* تأثيرات الـ Hover */
+        .student-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.4);
+            border-color: #58a6ff;
+        }
+
+        /* الحالة: أونلاين */
+        .status-badge {
+            margin-top: 10px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .online { background: rgba(35, 134, 54, 0.2); color: #3fb950; border: 1px solid #238636; }
+        .offline { background: rgba(48, 54, 61, 0.5); color: #8b949e; border: 1px solid #30363d; opacity: 0.7; }
+        
+        /* نقطة النبض */
+        .pulse-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #3fb950;
+            box-shadow: 0 0 0 rgba(63, 185, 80, 0.4);
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(63, 185, 80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+        }
+
+        /* الحالة: غشاش (Cheated) */
+        .student-card.cheated {
+            background: repeating-linear-gradient(
+                45deg,
+                #2a0a0a,
+                #2a0a0a 10px,
+                #3a0f0f 10px,
+                #3a0f0f 20px
+            );
+            border: 2px solid #da3633;
+            animation: shake 0.5s;
+        }
+        .student-card.cheated h3 { color: #da3633; }
+        .cheated-badge { background: #da3633; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+
+        /* الحالة: يتحدث (Speaking) */
+        .student-card.speaking {
+            border: 2px solid #e3b341;
+            box-shadow: 0 0 20px rgba(227, 179, 65, 0.3);
+            transform: scale(1.05);
+            background: #1f1f1f;
+        }
+
+        /* --- باقي الستايل --- */
+        .control-bar { background: #0d1117; padding: 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .mode-title { color: #58a6ff; font-weight: bold; font-size: 20px; display: flex; align-items: center; gap: 10px;}
+        .connection-status { font-size: 12px; color: gray; margin-left: 10px; }
+        .active-connection { color: #3fb950; }
+        .error-connection { color: #da3633; }
+
+        /* Turnos & Groups Styles (نفس السابق) */
+        .turn-display { margin-top: 40px; }
+        .active-speaker { font-size: 4em; color: #58a6ff; margin: 20px 0; min-height: 1.2em; }
+        .transcript-revealed { font-size: 1.5em; color: #e3b341; margin-top: 20px; padding: 20px; border: 1px solid #e3b341; border-radius: 8px; background: rgba(227,179,65,0.1); }
+        
+        /* Groups Logic Styles */
+        #grouping-canvas { position: relative; height: 70vh; width: 100%; border: 1px dashed #30363d; margin-top: 20px; background: #0d1117; display: flex; flex-direction: column; }
+        .groups-container { display: flex; justify-content: space-around; height: 60%; padding-top: 20px; }
+        .group-box { width: 30%; height: 100%; border: 2px solid #58a6ff; border-radius: 12px; background: rgba(22, 27, 34, 0.9); display: flex; flex-direction: column; overflow: hidden; }
+        .group-header { padding: 10px; font-size: 1.2em; font-weight: bold; border-bottom: 1px solid #58a6ff; text-align: center;}
+        .group-1 { border-color: #d2a8ff; } .group-1 .group-header { background: rgba(210, 168, 255, 0.2); color: #d2a8ff; }
+        .group-2 { border-color: #79c0ff; } .group-2 .group-header { background: rgba(121, 192, 255, 0.2); color: #79c0ff; }
+        .group-3 { border-color: #56d364; } .group-3 .group-header { background: rgba(86, 211, 100, 0.2); color: #56d364; }
+        .group-content { flex: 1; padding: 10px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; justify-content: center; }
+        .student-tag { background: #238636; color: white; padding: 8px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; animation: popIn 0.3s ease-out; }
+        .staging-area { height: 40%; width: 100%; border-top: 1px solid #30363d; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 10px; padding: 20px; background: #161b22; }
+        .flying-name { position: fixed; z-index: 9999; background: #e3b341; color: black; padding: 10px 15px; border-radius: 20px; font-weight: bold; font-size: 16px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: all 1s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        
+        @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
+        @keyframes shake { 0% { transform: translate(1px, 1px); } 100% { transform: translate(-1px, -1px); } }
+    </style>
 </head>
 <body>
 
-    <div style="background: #161b22; padding: 15px; border-bottom: 2px solid #30363d; display: flex; justify-content: space-between; align-items: center;">
-        <div id="mode-title" style="color: #58a6ff; font-weight: bold; font-size: 24px;">panel</div>
+    <div class="control-bar">
+        <div class="mode-title">
+            <span id="mode-icon">📊</span> 
+            <span id="mode-title">MONITOR</span>
+            <span id="connection-status" class="connection-status">Connecting...</span>
+        </div>
         <div>
             <button class="btn btn-action" onclick="switchMode('monitor')">📊 Monitor</button>
-            <button class="btn btn-action" onclick="switchMode('turn')">🎤 Turnos </button>
-            <button class="btn btn-action" onclick="switchMode('group')">🧩 Grupos  </button>
+            <button class="btn btn-action" onclick="switchMode('turn')">🎰 Casino</button>
+            <button class="btn btn-action" onclick="switchMode('group')">🧩 Grupos</button>
             <button class="btn btn-danger" onclick="resetAll()">🔄 RESET</button>
         </div>
     </div>
 
-    <div id="monitor-view" class="dashboard-grid" style="padding: 20px;"></div>
+    <div id="monitor-view" class="dashboard-grid">
+        </div>
 
     <div id="turn-view" class="hidden">
         <div style="text-align: center; margin-top: 50px;">
             <button id="next-turn-btn" class="btn" onclick="spinTheWheel()" style="width: 300px; font-size: 22px; background: #1f6feb; box-shadow: 0 0 15px #1f6feb;">
-                🎲 GIRAR RULETA 
+                🎲 GIRAR RULETA
             </button>
             
             <div id="active-turn-card" class="turn-display">
@@ -32,7 +143,7 @@
                 <h1 id="speaker-name" class="active-speaker">...</h1>
                 
                 <div id="transcript-area" class="hidden">
-                    <button class="btn btn-reveal" style="background: #e3b341; color: black;" onclick="revealText()">👁️</button>
+                    <button class="btn btn-reveal" style="background: #e3b341; color: black; font-weight: bold;" onclick="revealText()">👁️</button>
                     <div id="speaker-text" style="display: none;" class="transcript-revealed"></div>
                 </div>
             </div>
@@ -41,35 +152,22 @@
 
     <div id="group-view" class="hidden">
         <div style="text-align: center; padding: 10px; background: #0d1117;">
-            <button class="btn btn-action" onclick="prepareGrouping()">1. PREPARAR NOMBRES</button>
+            <button class="btn btn-action" onclick="prepareGrouping()">1. PREPARAR</button>
             <button class="btn btn-action" onclick="executeDistribution()">2. DISTRIBUIR (GO!)</button>
         </div>
         
         <div id="grouping-canvas">
             <div class="groups-container">
-                <div class="group-box group-1" id="box-1">
-                    <div class="group-header">GRUPO 1</div>
-                    <div class="group-content" id="content-1"></div>
-                </div>
-                <div class="group-box group-2" id="box-2">
-                    <div class="group-header">GRUPO 2</div>
-                    <div class="group-content" id="content-2"></div>
-                </div>
-                <div class="group-box group-3" id="box-3">
-                    <div class="group-header">GRUPO 3</div>
-                    <div class="group-content" id="content-3"></div>
-                </div>
+                <div class="group-box group-1" id="box-1"><div class="group-header">GRUPO 1</div><div class="group-content" id="content-1"></div></div>
+                <div class="group-box group-2" id="box-2"><div class="group-header">GRUPO 2</div><div class="group-content" id="content-2"></div></div>
+                <div class="group-box group-3" id="box-3"><div class="group-header">GRUPO 3</div><div class="group-content" id="content-3"></div></div>
             </div>
-
-            <div class="staging-area" id="staging-area">
-                <p style="width: 100%; color: gray;">Los nombres apareceán aquí ...</p>
-            </div>
+            <div class="staging-area" id="staging-area"><p style="width: 100%; color: gray;">Lista de estudiantes...</p></div>
         </div>
     </div>
 
     <script>
-        // --- تهيئة البيانات ---
-        // تعريف المجموعات (يمكنك تغييرها)
+        // --- Config ---
         const GROUPS = {
             "Aya Z.": 1, "Hamza": 1, "Malak": 1, "Omar": 1,
             "Aya G.": 2, "Zakariya": 2, "Fatima zahra": 2, "Hiba": 2,
@@ -79,260 +177,236 @@
         let studentsData = [];
         let currentSpeakerId = null;
         let isSpinning = false;
+        let unsubscribe = null; // لتخزين الاشتراك
 
+        // --- Init with Error Handling ---
         async function init() {
-            // جلب الداتا الأولية
-            const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
-            studentsData = res.documents;
-            renderMonitor();
-
-            // Realtime Update
-            client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
-                const doc = response.payload;
-                const idx = studentsData.findIndex(s => s.$id === doc.$id);
-                if (idx !== -1) studentsData[idx] = doc;
-                else studentsData.push(doc);
-                
+            updateConnectionStatus("Connecting...", "gray");
+            try {
+                // Fetch initial data
+                const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
+                studentsData = res.documents;
                 renderMonitor();
+                updateConnectionStatus("Connected ●", "active-connection");
                 
-                // إذا وصل النص (transcript) والسبينر سالا، بين الزر
-                if (currentSpeakerId === doc.$id && doc.transcript && doc.transcript.length > 0) {
-                   // التلميذ هدر، واش نبينو دابا؟ لا، حتى يطلب الأستاذ Reveal
-                   // هنا ممكن نديرو شي إشارة أن النص وصل
-                }
-            });
+                startRealtime();
+
+            } catch (e) {
+                console.error("Init Error:", e);
+                updateConnectionStatus("Error: " + e.message, "error-connection");
+                alert("مشكل في الاتصال بقاعدة البيانات. تأكد من Project ID و Permissions.");
+            }
         }
+
+        function startRealtime() {
+            if(unsubscribe) unsubscribe(); // إلغاء القديم إذا وجد
+
+            try {
+                unsubscribe = client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
+                    const doc = response.payload;
+                    
+                    // Update Local Data
+                    const idx = studentsData.findIndex(s => s.$id === doc.$id);
+                    if (idx !== -1) studentsData[idx] = doc;
+                    else studentsData.push(doc);
+                    
+                    renderMonitor();
+                });
+            } catch(e) {
+                console.log("Realtime failed, retrying...");
+                setTimeout(startRealtime, 2000);
+            }
+        }
+
+        function updateConnectionStatus(text, className) {
+            const el = document.getElementById('connection-status');
+            el.innerText = text;
+            el.className = "connection-status " + className;
+        }
+
         init();
 
-        // --- 1. Monitor Logic ---
+        // --- 1. Monitor Render (New UX) ---
         function renderMonitor() {
             const container = document.getElementById('monitor-view');
             container.innerHTML = '';
-            studentsData.forEach(s => {
-                // بين كلشي باش تعرف شكون حاضر
+            
+            // ترتيب: الأونلاين هو الأول
+            const sortedStudents = [...studentsData].sort((a, b) => {
+                const aActive = a.status === 'online' || a.cheated;
+                const bActive = b.status === 'online' || b.cheated;
+                return bActive - aActive; 
+            });
+
+            if(sortedStudents.length === 0) {
+                container.innerHTML = `<p style="color:gray; width:100%; text-align:center;">No hay estudiantes conectados...</p>`;
+                return;
+            }
+
+            sortedStudents.forEach(s => {
                 const isOnline = s.status === 'online';
                 const isCheated = s.cheated;
+                const isSpeaking = s.is_turn;
                 
                 const card = document.createElement('div');
-                card.className = `card ${isCheated ? 'cheated' : ''} ${s.is_turn ? 'speaking' : ''}`;
-                card.style.opacity = isOnline || isCheated ? '1' : '0.5';
+                card.className = `student-card ${isCheated ? 'cheated' : ''} ${isSpeaking ? 'speaking' : ''}`;
                 
-                let statusIcon = isOnline ? '🟢' : '⚫';
-                if(isCheated) statusIcon = '😡';
+                // تحديد شكل الـ Badge
+                let badgeHTML = '';
+                if(isCheated) {
+                    badgeHTML = `<div class="cheated-badge">🚫 BUSTED</div>`;
+                } else if(isOnline) {
+                    badgeHTML = `<div class="status-badge online"><div class="pulse-dot"></div> ONLINE</div>`;
+                } else {
+                    badgeHTML = `<div class="status-badge offline">⚫ OFFLINE</div>`;
+                    card.style.opacity = "0.6"; // تغميق اللي غايب
+                }
 
                 card.innerHTML = `
-                    <h3>${s.name}</h3>
-                    <p>${statusIcon} ${isCheated ? 'Busted!' : (isOnline ? 'Online' : 'Offline')}</p>
+                    <h3 style="margin:0; font-size: 1.2em; color: #e6edf3;">${s.name}</h3>
+                    ${badgeHTML}
+                    ${isSpeaking ? '<div style="margin-top:5px; color:#e3b341; font-weight:bold;">🎤 Hablando...</div>' : ''}
                 `;
                 container.appendChild(card);
             });
         }
 
-        // --- 2. Casino Turn Logic (عجلة الحظ) ---
+        // --- 2. Casino Logic ---
         async function spinTheWheel() {
-            if(isSpinning) return; // منع الضغط المتكرر
+            if(isSpinning) return;
             
-            // 1. Reset السابق
+            // Reset Previous
             if (currentSpeakerId) {
                 await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeakerId, { is_turn: false });
                 document.getElementById('transcript-area').classList.add('hidden');
                 document.getElementById('speaker-text').style.display = 'none';
-                document.getElementById('speaker-text').innerText = '';
             }
 
-            // 2. تصفية المرشحين (فقط اللي أونلاين وماشي غشاشين)
             const eligible = studentsData.filter(s => s.status === 'online' && !s.cheated);
-            if (eligible.length === 0) { alert("لا يوجد تلاميذ متاحين (No active students)"); return; }
+            if (eligible.length === 0) { alert("No active students!"); return; }
 
-            // 3. بدء تأثير الكازينو
             isSpinning = true;
             document.getElementById('next-turn-btn').disabled = true;
             const nameDisplay = document.getElementById('speaker-name');
             nameDisplay.style.color = "white";
             
             let counter = 0;
-            const maxSpins = 30; // شحال من مرة يتبدل الاسم
-            const speed = 80; // السرعة بالميلي ثانية
-
+            const maxSpins = 25;
             const interval = setInterval(() => {
-                // إظهار اسم عشوائي
-                const randomName = eligible[Math.floor(Math.random() * eligible.length)].name;
-                nameDisplay.innerText = randomName;
+                nameDisplay.innerText = eligible[Math.floor(Math.random() * eligible.length)].name;
                 counter++;
-
                 if (counter >= maxSpins) {
                     clearInterval(interval);
                     finalizeTurn(eligible);
                 }
-            }, speed);
+            }, 80);
         }
 
         async function finalizeTurn(eligible) {
-            // اختيار الرابح الحقيقي
             const winner = eligible[Math.floor(Math.random() * eligible.length)];
             const nameDisplay = document.getElementById('speaker-name');
             
-            // تأثير التوقف
             nameDisplay.innerText = winner.name;
             nameDisplay.style.color = "#58a6ff";
             nameDisplay.style.transform = "scale(1.5)";
             setTimeout(() => nameDisplay.style.transform = "scale(1)", 300);
 
-            // تحديث الداتابيز
             currentSpeakerId = winner.$id;
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, winner.$id, { 
-                is_turn: true,
-                transcript: "" // مسح النص القديم
+                is_turn: true, transcript: "" 
             });
 
             isSpinning = false;
             document.getElementById('next-turn-btn').disabled = false;
-            
-            // إظهار زر الـ Reveal (نتسناو شوية باش يعيق بلي راه اختاريناه)
-            setTimeout(() => {
-                document.getElementById('transcript-area').classList.remove('hidden');
-            }, 1000);
+            setTimeout(() => { document.getElementById('transcript-area').classList.remove('hidden'); }, 1000);
         }
 
         async function revealText() {
             const textBox = document.getElementById('speaker-text');
-            textBox.innerText = "⏳ Cargando..."; // Loading message
+            textBox.innerText = "⏳ Fetching...";
             textBox.style.display = 'block';
 
-            // 1. محاولة البحث في البيانات المحلية
-            let student = studentsData.find(s => s.$id === currentSpeakerId);
-
-            // 2. إذا كان النص فارغاً، نجبر النظام يجيبو من السيرفر (Force Fetch)
-            if (!student || !student.transcript) {
-                try {
-                    console.log("Fetching fresh data from server...");
-                    student = await databases.getDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeakerId);
-                    
-                    // تحديث البيانات المحلية باش المرة الجاية تكون واجدة
-                    const idx = studentsData.findIndex(s => s.$id === currentSpeakerId);
-                    if(idx !== -1) studentsData[idx] = student;
-                } catch(e) { 
-                    console.error("Error fetching data:", e);
+            try {
+                // Force fetch from server
+                const doc = await databases.getDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeakerId);
+                if (doc.transcript) {
+                    textBox.innerText = `"${doc.transcript}"`;
+                    textBox.className = "transcript-revealed";
+                } else {
+                    textBox.innerText = "⚠️ No data yet.";
                 }
-            }
-
-            // 3. عرض النتيجة النهائية
-            if (student && student.transcript) {
-                textBox.innerText = `"${student.transcript}"`;
-                textBox.className = "transcript-revealed";
-            } else {
-                textBox.innerText = "⚠️ No hay respuesta ";
-            }
+            } catch(e) { textBox.innerText = "Error loading text."; }
         }
 
-        // --- 3. Groups Logic (توزيع المجموعات) ---
-        
+        // --- 3. Groups Logic ---
         function prepareGrouping() {
-            // 1. تنظيف الساحة
-            document.getElementById('content-1').innerHTML = '';
-            document.getElementById('content-2').innerHTML = '';
-            document.getElementById('content-3').innerHTML = '';
-            const staging = document.getElementById('staging-area');
-            staging.innerHTML = '';
-
-            // 2. وضع كل الأسماء (الأونلاين + الغشاشين) في الأسفل
-            const activeStudents = studentsData.filter(s => s.status === 'online' || s.cheated);
+            ['content-1', 'content-2', 'content-3', 'staging-area'].forEach(id => document.getElementById(id).innerHTML = '');
             
+            const activeStudents = studentsData.filter(s => s.status === 'online' || s.cheated);
+            const staging = document.getElementById('staging-area');
+
             activeStudents.forEach(s => {
                 const badge = document.createElement('div');
                 badge.className = 'student-tag';
-                badge.style.background = '#30363d'; // لون رمادي مؤقت
+                badge.style.background = '#30363d';
                 badge.innerText = s.name;
-                badge.dataset.id = s.$id;
                 badge.dataset.name = s.name;
                 staging.appendChild(badge);
             });
         }
 
         function executeDistribution() {
-            const stagingTags = Array.from(document.querySelectorAll('#staging-area .student-tag'));
-            if(stagingTags.length === 0) return;
-
-            // نوزعوهم واحد بواحد بفاصل زمني
-            stagingTags.forEach((tag, index) => {
-                setTimeout(() => {
-                    animateTagToGroup(tag);
-                }, index * 800); // كل 0.8 ثانية يمشي واحد
+            const tags = Array.from(document.querySelectorAll('#staging-area .student-tag'));
+            tags.forEach((tag, index) => {
+                setTimeout(() => animateTagToGroup(tag), index * 600);
             });
         }
 
         function animateTagToGroup(originalTag) {
             const name = originalTag.dataset.name;
-            const groupNum = GROUPS[name] || 2; // الافتراضي مجموعة 2
+            const groupNum = GROUPS[name] || 2;
             const targetBox = document.getElementById(`box-${groupNum}`);
             const targetContent = document.getElementById(`content-${groupNum}`);
 
-            // 1. حساب الإحداثيات للانطلاق والهبوط
             const rectStart = originalTag.getBoundingClientRect();
-            // نحسبو فين غادي يجي فاللخر (تقريبا وسط الصندوق)
             const rectEnd = targetBox.getBoundingClientRect();
 
-            // 2. إنشاء نسخة طائرة
             const flyer = document.createElement('div');
             flyer.className = 'flying-name';
             flyer.innerText = name;
             flyer.style.left = rectStart.left + 'px';
             flyer.style.top = rectStart.top + 'px';
             flyer.style.width = rectStart.width + 'px';
-            
             document.body.appendChild(flyer);
             
-            // إخفاء الأصلي
             originalTag.style.opacity = 0;
 
-            // 3. التحريك (Force Reflow)
             flyer.getBoundingClientRect(); 
-            
-            // الهدف: وسط الصندوق
             flyer.style.left = (rectEnd.left + rectEnd.width/2 - 50) + 'px';
             flyer.style.top = (rectEnd.top + rectEnd.height/2) + 'px';
-            flyer.style.background = getGroupColor(groupNum); // يتبدل لونو بلون المجموعة فالطريق
+            flyer.style.background = groupNum === 1 ? '#d2a8ff' : (groupNum === 2 ? '#79c0ff' : '#56d364');
 
-            // 4. عند الوصول
             setTimeout(() => {
                 flyer.remove();
-                
-                // إضافة العنصر الدائم داخل الصندوق
                 const finalTag = document.createElement('div');
                 finalTag.className = 'student-tag';
                 finalTag.innerText = name;
-                finalTag.style.background = getGroupColor(groupNum);
-                targetContent.appendChild(finalTag); // هنا الـ Flexbox غيقادو مزيان
-                
-                // صوت بسيط (اختياري)
-                // new Audio('pop.mp3').play().catch(()=>{}); 
-            }, 1000); // نفس وقت الـ transition فـ CSS
+                finalTag.style.background = flyer.style.background;
+                targetContent.appendChild(finalTag);
+            }, 1000);
         }
 
-        function getGroupColor(num) {
-            if(num === 1) return '#d2a8ff';
-            if(num === 2) return '#79c0ff';
-            return '#56d364';
-        }
-
-        // --- Navigation ---
+        // --- Navigation & Reset ---
         function switchMode(mode) {
             ['monitor-view', 'turn-view', 'group-view'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById(mode + '-view').classList.remove('hidden');
             
-            if (mode === 'monitor') {
-                document.getElementById('monitor-view').classList.remove('hidden');
-                document.getElementById('mode-title').innerText = "MONITOR";
-            } else if (mode === 'turn') {
-                document.getElementById('turn-view').classList.remove('hidden');
-                document.getElementById('mode-title').innerText = "CASINO TURN";
-            } else if (mode === 'group') {
-                document.getElementById('group-view').classList.remove('hidden');
-                document.getElementById('mode-title').innerText = "GROUP SORT";
-            }
+            const titles = { monitor: "MONITOR", turn: "CASINO", group: "GRUPOS" };
+            document.getElementById('mode-title').innerText = titles[mode];
         }
 
         async function resetAll() {
-            if(confirm("Reset complete system?")) {
+            if(confirm("¿Reiniciar todo?")) {
                 studentsData.forEach(s => {
                     databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { 
                         status: 'offline', cheated: false, is_turn: false, transcript: ""
