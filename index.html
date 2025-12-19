@@ -3,12 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Estudiantes</title>
+    <title>Estudiante</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
+    <style>
+        /* زر التحديث الصغير */
+        .refresh-icon {
+            position: fixed; top: 10px; right: 10px;
+            background: rgba(255,255,255,0.1); border: 1px solid #30363d;
+            color: #c9d1d9; padding: 8px 12px; border-radius: 20px;
+            font-size: 12px; cursor: pointer; z-index: 1000;
+        }
+    </style>
 </head>
 <body>
+
+    <button onclick="checkMyStatus()" class="refresh-icon">🔄 Refresh</button>
 
     <div id="login-screen">
         <h2>Elige tu nombre<br><span style="font-size: 0.6em; color: gray;">Selecciona tu cuenta</span></h2>
@@ -16,20 +27,17 @@
     </div>
 
     <div id="wait-screen" class="hidden connected-screen">
-        <h1 class="connected-text">Conectado</h1>
+        <h1 class="connected-text" style="color: #238636;">Conectado</h1>
         <p style="margin-top: 20px; font-size: 14px; opacity: 0.6;">Espera tu turno...</p>
-        <div style="margin-top: 20px;">🟢</div>
+        <div style="margin-top: 20px; font-size: 2em;" id="pulse-dot">🟢</div>
     </div>
 
     <div id="game-screen" class="hidden" style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-        
         <h2 style="color: #58a6ff; margin-bottom: 30px;">¡ES TU TURNO!</h2>
-        
         <div id="btn-container">
             <button id="mic-btn" class="mystery-btn">🎤 HABLAR</button>
             <p id="status-text" style="margin-top: 20px; font-weight: bold; color: #c9d1d9;">Pulsa para hablar</p>
         </div>
-
     </div>
 
     <div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
@@ -38,7 +46,7 @@
     </div>
 
     <script>
-        // ⚠️ Groq API Key
+        // ⚠️ API KEY
         const API_KEY = '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';
 
         let myDocId = null;
@@ -46,122 +54,117 @@
         let audioChunks = [];
         let isRecording = false;
 
-        // Cargar estudiantes
         async function loadStudents() {
             try {
                 const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
                 const grid = document.getElementById('names-grid');
-                grid.innerHTML = ''; 
-                
+                grid.innerHTML = '';
                 response.documents.forEach(doc => {
                     const btn = document.createElement('button');
                     btn.className = 'btn';
                     btn.innerText = doc.name;
-                    // Disable if online
                     if(doc.status === 'online') {
-                        btn.disabled = true;
+                        btn.disabled = true; 
                         btn.style.opacity = '0.5';
                     }
                     btn.onclick = () => login(doc.$id);
                     grid.appendChild(btn);
                 });
-            } catch (e) { console.error("Error loading students:", e); }
+            } catch (e) { alert("Error de conexión"); }
         }
         loadStudents();
 
-        // Login
         async function login(id) {
             myDocId = id;
-            
-            // Wake Lock
             try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (err) {}
 
-            // UI Update
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
-            // DB Update
+            // Set Online
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                status: 'online',
-                cheated: false,
-                is_turn: false,
-                transcript: "" 
+                status: 'online', cheated: false, is_turn: false, transcript: "" 
             });
 
             startListeners();
             activateTrap();
         }
 
-        // Listener Realtime
+        // --- New Logic: Realtime + Manual Check ---
+        
         function startListeners() {
-            console.log("Listening for turn updates...");
-            
+            // 1. Realtime Listener
             client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
-                const data = response.payload;
-                
-                if (data.is_turn === true) {
-                    // Turno activo
-                    document.getElementById('wait-screen').classList.add('hidden');
-                    document.getElementById('game-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#161b22'; 
-                } else {
-                    // Turno inactivo
-                    document.getElementById('game-screen').classList.add('hidden');
-                    if (!document.getElementById('busted-screen').classList.contains('hidden')) {
-                        // Keep busted screen
-                    } else {
-                        document.getElementById('wait-screen').classList.remove('hidden');
-                    }
-                    document.body.style.backgroundColor = '#0d1117';
-                    
-                    resetMicButton();
-                }
+                handleStatusChange(response.payload);
             });
         }
 
-        // === Logic Micrófono ===
+        // الدالة اليدوية (مهمة جداً)
+        async function checkMyStatus() {
+            if(!myDocId) return;
+            try {
+                const doc = await databases.getDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId);
+                handleStatusChange(doc);
+                // تأثير بصري باش يعرف راه دار ريفرش
+                const dot = document.getElementById('pulse-dot');
+                dot.innerText = "🔄";
+                setTimeout(() => dot.innerText = "🟢", 1000);
+            } catch(e) { console.error(e); }
+        }
+
+        function handleStatusChange(data) {
+            // Anti-Cheat Check First
+            if (data.cheated) {
+                showScreen('busted-screen');
+                return;
+            }
+
+            // Turn Logic
+            if (data.is_turn === true) {
+                showScreen('game-screen');
+                document.body.style.backgroundColor = '#161b22';
+            } else {
+                showScreen('wait-screen');
+                document.body.style.backgroundColor = '#0d1117';
+                resetMicButton();
+            }
+        }
+
+        function showScreen(screenId) {
+            ['login-screen', 'wait-screen', 'game-screen', 'busted-screen'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+
+        // --- Microphone Logic ---
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
         micBtn.onclick = async () => {
             if (!isRecording) {
-                // START RECORDING
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
                     mediaRecorder = new MediaRecorder(stream, { mimeType });
                     audioChunks = [];
-
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.start();
                     isRecording = true;
-
-                    // UI Updates
                     micBtn.classList.add('recording');
                     micBtn.innerText = "🛑"; 
-                    statusText.innerText = "Escuchando... (pulsa para terminar)";
-
-                } catch (e) { 
-                    alert("¡Por favor, permite el acceso al micrófono!"); 
-                    console.error(e);
-                }
+                    statusText.innerText = "Escuchando... (Stop)";
+                } catch (e) { alert("Mic Error"); }
             } else {
-                // STOP RECORDING
-                if(mediaRecorder && mediaRecorder.state !== 'inactive') {
+                if(mediaRecorder) {
                     mediaRecorder.stop();
                     mediaRecorder.onstop = async () => {
                         const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                        
                         micBtn.classList.remove('recording');
                         micBtn.innerText = "⏳";
                         statusText.innerText = "Procesando...";
-                        
-                        // Send to Groq
                         await sendToAI(blob);
-                        
                         isRecording = false;
-                        
-                        // Stop tracks
                         mediaRecorder.stream.getTracks().forEach(t => t.stop());
                     };
                 }
@@ -175,7 +178,6 @@
             isRecording = false;
         }
 
-        // Send Audio to Groq
         async function sendToAI(blob) {
             const formData = new FormData();
             const ext = blob.type.includes("mp4") ? "m4a" : "webm";
@@ -217,25 +219,21 @@
             }
         }
 
-        // === Anti-Cheat (Visibilidad) ===
+        // --- Anti-Cheat ---
         function activateTrap() {
             document.addEventListener("visibilitychange", () => {
                 if (document.hidden) {
-                    triggerCheat();
+                    databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, { cheated: true, status: 'cheated' });
+                    showScreen('busted-screen');
                 }
             });
         }
+        
+        // تشغيل التحقق كل 5 ثواني احتياطاً (Auto-Poll)
+        setInterval(() => {
+            if(myDocId && !document.hidden) checkMyStatus();
+        }, 5000);
 
-        function triggerCheat() {
-            document.getElementById('wait-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.add('hidden');
-            document.getElementById('busted-screen').classList.remove('hidden');
-            
-            databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                cheated: true,
-                status: 'cheated'
-            });
-        }
     </script>
 </body>
 </html>
