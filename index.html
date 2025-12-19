@@ -27,13 +27,15 @@
     </div>
 
     <script>
-        const API_KEY = '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'; // Groq API Key
+        const API_KEY = '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'; // Groq API
         let myDocId = null;
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
         let wakeLock = null;
+        let realtimeSubscription = null; // للاحتفاظ بالاشتراك
 
+        // منع انطفاء الشاشة
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
@@ -42,6 +44,7 @@
             } catch (err) { console.error(err); }
         }
 
+        // تحميل الأسماء
         async function loadStudents() {
             try {
                 const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
@@ -50,6 +53,7 @@
                     const btn = document.createElement('button');
                     btn.className = 'btn';
                     btn.innerText = doc.name;
+                    // إذا كان أصلاً أونلاين، نمنع الدخول (اختياري)
                     if(doc.status === 'online') btn.disabled = true;
                     btn.onclick = () => login(doc.$id);
                     grid.appendChild(btn);
@@ -58,6 +62,7 @@
         }
         loadStudents();
 
+        // تسجيل الدخول
         async function login(id) {
             myDocId = id;
             await requestWakeLock();
@@ -65,40 +70,70 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
 
+            // تحديث الحالة لـ Online
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online', is_turn: false
             });
 
-            startListeners();
+            // ✅ تشغيل الاستماع الفوري (REALTIME)
+            startRealtimeListener();
         }
 
-        function startListeners() {
-            client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`, response => {
-                const data = response.payload;
-                if (data.is_turn) {
-                    document.getElementById('wait-screen').classList.add('hidden');
-                    document.getElementById('game-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#1f2428';
-                } else {
-                    document.getElementById('game-screen').classList.add('hidden');
-                    document.getElementById('wait-screen').classList.remove('hidden');
-                    document.body.style.backgroundColor = '#0d1117';
-                    // Reset Button
-                    const btn = document.getElementById('mic-btn');
-                    btn.classList.remove('recording');
-                    btn.innerText = "🎤 HABLAR";
-                    isRecording = false;
+        // ✅ دالة الـ Realtime (أهم جزء)
+        function startRealtimeListener() {
+            // القناة: databases.[ID].collections.[ID].documents.[STUDENT_ID]
+            // هاد القناة كتعني: أي تغيير يوقع فـ الملف ديالي أنا بالضبط، علمني
+            const channel = `databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents.${myDocId}`;
+
+            console.log("Listening to channel:", channel);
+
+            realtimeSubscription = client.subscribe(channel, response => {
+                console.log("Realtime Update:", response);
+
+                // التحقق من نوع الحدث (فقط updates)
+                if (response.events.some(event => event.includes('update'))) {
+                    const data = response.payload;
+
+                    // 1. إذا وصلني الدور (is_turn = true)
+                    if (data.is_turn === true) {
+                        showGameScreen();
+                    } 
+                    // 2. إذا تسحب مني الدور (is_turn = false)
+                    else {
+                        showWaitScreen();
+                    }
                 }
             });
         }
 
+        function showGameScreen() {
+            document.getElementById('wait-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.body.style.backgroundColor = '#1f2428';
+            // اهتزاز الهاتف لتنبيه التلميذ (إلا كان مدعوم)
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        }
+
+        function showWaitScreen() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('wait-screen').classList.remove('hidden');
+            document.body.style.backgroundColor = '#0d1117';
+            
+            // إعادة ضبط الزر
+            isRecording = false;
+            const btn = document.getElementById('mic-btn');
+            btn.classList.remove('recording');
+            btn.innerText = "🎤 HABLAR";
+            document.getElementById('status-text').innerText = "ES TU TURNO";
+        }
+
+        // --- منطق التسجيل (بقي كما هو) ---
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
         micBtn.onclick = async () => {
-            // ✅ منطق الزر: كليك للبدء، كليك للإيقاف
             if (!isRecording) {
-                // --- START RECORDING ---
+                // Start Recording
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
@@ -108,18 +143,15 @@
                     mediaRecorder.start();
                     isRecording = true;
                     
-                    // تحديث الشكل
                     micBtn.classList.add('recording');
                     micBtn.innerText = "⏹ DETENER";
                     statusText.innerText = "GRABANDO...";
-                } catch (e) { alert("Error de micrófono"); }
-
+                } catch (e) { alert("Error de micrófono: " + e.message); }
             } else {
-                // --- STOP & SEND ---
+                // Stop Recording
                 mediaRecorder.stop();
                 mediaRecorder.onstop = async () => {
                     const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                    
                     micBtn.classList.remove('recording');
                     micBtn.innerText = "⏳ ENVIANDO...";
                     statusText.innerText = "PROCESANDO...";
@@ -129,8 +161,6 @@
                     isRecording = false;
                     micBtn.innerText = "✓ LISTO";
                     statusText.innerText = "¡RESPUESTA ENVIADA!";
-                    
-                    // إيقاف استخدام الميكروفون
                     mediaRecorder.stream.getTracks().forEach(t => t.stop());
                 };
             }
@@ -152,11 +182,12 @@
                 });
                 const data = await res.json();
                 if (data.text) {
+                    // إرسال النص لـ Appwrite
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                         transcript: data.text
                     });
                 }
-            } catch (e) {}
+            } catch (e) { console.error(e); }
         }
     </script>
 </body>
