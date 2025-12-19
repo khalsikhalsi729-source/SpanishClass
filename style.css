@@ -1,10 +1,9 @@
-/* style.css */
 body {
     background-color: #0d1117;
     color: #c9d1d9;
     font-family: 'Courier New', Courier, monospace;
     text-align: center;
-    margin: 0; padding: 20px;
+    margin: 0; padding: 0; /* تم تغيير padding إلى 0 للشاشات الصغيرة */
     overflow-x: hidden;
 }
 
@@ -17,10 +16,10 @@ body {
 .btn:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; opacity: 0.6; }
 .btn-action { background: #1f6feb; width: auto; margin: 5px; font-weight: bold;}
 .btn-danger { background: #da3633; }
-.btn-reveal { background: #e3b341; color: black; font-weight: bold; animation: pulse 2s infinite; }
+.btn-reveal { background: #e3b341; color: black; font-weight: bold; animation: pulse 2s infinite; width: auto !important; display: inline-block; padding: 10px 30px;}
 
 /* Grid للتلاميذ */
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; padding: 20px;}
 
 /* شاشة الانتظار للتلميذ */
 .connected-screen {
@@ -44,40 +43,15 @@ body {
     border: 1px solid #30363d; padding: 15px; border-radius: 8px; background: #161b22; 
     transition: transform 0.3s; position: relative;
 }
-.card.cheated { 
-    background: #5a0000; border: 2px solid red; 
-    animation: zoom-in-out 0.5s infinite alternate; /* Zoom/Animation فاش يحصل */
-    z-index: 100;
-}
 .card.speaking { border: 2px solid #58a6ff; box-shadow: 0 0 15px #58a6ff; transform: scale(1.05); }
 
-/* Transcription Box (Hidden/Revealed) */
-.transcript-hidden { filter: blur(10px); opacity: 0.5; user-select: none; }
-.transcript-revealed { filter: none; opacity: 1; transition: filter 0.5s ease; color: #e3b341; font-weight: bold; font-size: 1.2em; margin-top: 10px;}
-
-/* Grouping Animation Container */
-#grouping-canvas {
-    position: relative; height: 80vh; width: 100%; border: 1px dashed #30363d; margin-top: 20px; display: none;
-}
-.group-box {
-    position: absolute; width: 30%; height: 60%; border: 2px solid #58a6ff; 
-    border-radius: 10px; padding: 10px; overflow-y: auto; background: rgba(22, 27, 34, 0.8);
-}
-.group-1 { top: 10px; left: 2%; border-color: #d2a8ff; }
-.group-2 { top: 10px; left: 35%; border-color: #79c0ff; }
-.group-3 { top: 10px; right: 2%; border-color: #56d364; }
-
-.floating-name {
-    position: absolute; padding: 10px 20px; background: #238636; color: white;
-    border-radius: 20px; font-weight: bold; font-size: 14px;
-    transition: all 1.5s cubic-bezier(0.25, 1, 0.5, 1); /* الحركة السلسة */
-    z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-}
+/* Transcription Box */
+.transcript-hidden { filter: blur(15px); opacity: 0; user-select: none; transition: all 0.5s; }
+.transcript-revealed { filter: none; opacity: 1; transition: filter 0.5s ease; color: #e3b341; font-weight: bold; font-size: 1.5em; margin-top: 10px; border: 1px dashed #30363d; padding: 15px;}
 
 /* Animations */
 @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(255, 0, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); } }
 @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-20px); } 100% { transform: translateY(0px); } }
-@keyframes zoom-in-out { from { transform: scale(1); } to { transform: scale(1.2); } }
+
 .hidden { display: none !important; }
-.busted { background-color: red !important; color: white !important; }

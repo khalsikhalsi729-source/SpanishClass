@@ -1,109 +1,109 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Panel de Profesor</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
-<script src="config.js"></script>
-<style>
-/* Dashboard Layout */
-.control-bar { display: flex; flex-wrap: wrap; gap: 10px; background: #161b22; padding: 15px; border-bottom: 2px solid #30363d; align-items: center; }
-.mode-title { color: #58a6ff; font-weight: bold; font-size: 24px; margin-right: auto; }
+    <meta charset="UTF-8">
+    <title>Panel de Profesor</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
+    <script src="config.js"></script>
+    <style>
+        /* تنسيقات خاصة داخل الصفحة لضمان عدم تعارضها */
+        .control-bar { display: flex; gap: 10px; background: #161b22; padding: 15px; border-bottom: 2px solid #30363d; flex-wrap: wrap; }
+        .mode-title { color: #58a6ff; font-weight: bold; font-size: 24px; text-transform: uppercase; margin-right: auto; align-self: center; }
+        
+        .current-turn-box {
+            text-align: center; margin: 20px auto; padding: 40px;
+            border: 4px solid #58a6ff; border-radius: 20px;
+            background: #0d1117; width: 70%; box-shadow: 0 0 30px rgba(88, 166, 255, 0.15);
+            min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        
+        .active-speaker { font-size: 4em; color: #58a6ff; margin: 20px 0; font-weight: bold; text-shadow: 0 0 10px rgba(88, 166, 255, 0.5); }
+        
+        .history-table { width: 80%; margin: 20px auto; border-collapse: collapse; color: #c9d1d9; background: #161b22; }
+        .history-table th, .history-table td { border: 1px solid #30363d; padding: 15px; text-align: left; }
+        .history-table th { background: #21262d; color: #58a6ff; }
+        
+        /* تنسيق المجموعات الجديد */
+        #grouping-canvas { position: relative; height: 75vh; width: 100%; margin-top: 10px; }
+        .group-box {
+            position: absolute; width: 30%; height: 50%; border: 3px solid;
+            border-radius: 15px; padding: 10px; background: rgba(22, 27, 34, 0.9);
+            overflow-y: auto; top: 10px; display: flex; flex-direction: column; gap: 5px;
+        }
+        .group-1 { left: 2%; border-color: #d2a8ff; }
+        .group-2 { left: 35%; border-color: #79c0ff; }
+        .group-3 { right: 2%; border-color: #56d364; }
+        
+        .pool-area {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 30%;
+            border-top: 2px dashed #30363d; display: flex; flex-wrap: wrap; 
+            justify-content: center; align-items: center; gap: 10px; padding: 20px;
+        }
 
-/* Turn/Roulette Styles */
-.current-turn-box { 
-    text-align: center; margin: 20px auto; padding: 30px; 
-    border: 3px solid #58a6ff; border-radius: 15px; background: #0d1117; width: 70%; 
-}
-.active-speaker { font-size: 4em; color: #58a6ff; margin: 10px 0; font-weight: bold; min-height: 1.2em; text-shadow: 0 0 15px rgba(88, 166, 255, 0.3); }
-
-/* History Modal */
-#history-modal { 
-    display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-    width: 60%; max-height: 80vh; background: #0d1117; border: 2px solid #e3b341; 
-    border-radius: 10px; z-index: 2000; overflow-y: auto; padding: 20px; box-shadow: 0 0 100px rgba(0,0,0,0.9); 
-}
-.history-row { 
-    display: flex; justify-content: space-between; border-bottom: 1px solid #30363d; 
-    padding: 15px; align-items: center; 
-}
-.history-name { color: #58a6ff; font-weight: bold; font-size: 1.1em; width: 30%; }
-.history-text { color: #c9d1d9; width: 65%; font-style: italic; }
-
-/* Groups Grid Layout (Clear View) */
-.groups-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 20px; }
-.group-col { background: #161b22; border: 2px solid; border-radius: 8px; padding: 10px; min-height: 300px; }
-.group-title { text-align: center; font-size: 1.5em; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
-.student-item { 
-    padding: 8px; margin: 5px 0; background: rgba(255,255,255,0.05); 
-    border-radius: 4px; font-size: 1.1em; display: flex; justify-content: space-between;
-}
-.online-dot { height: 10px; width: 10px; border-radius: 50%; background: #238636; display: inline-block; }
-.offline-dot { height: 10px; width: 10px; border-radius: 50%; background: #da3633; display: inline-block; }
-
-.transcript-revealed { color: #e3b341; font-size: 1.8em; font-weight: bold; margin-top: 20px; animation: popIn 0.5s ease; }
-@keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-</style>
+        .name-tag {
+            background: #238636; color: white; padding: 8px 15px; border-radius: 20px;
+            font-weight: bold; font-size: 16px; white-space: nowrap; z-index: 100;
+            transition: all 1s cubic-bezier(0.25, 1, 0.5, 1); position: absolute;
+        }
+    </style>
 </head>
 <body>
 
 <div class="control-bar">
     <div class="mode-title" id="mode-title">MODO: MONITOR</div>
     <button class="btn btn-action" onclick="switchMode('monitor')">📊 MONITOR</button>
-    <button class="btn btn-action" onclick="switchMode('turn')">🎰 RULETA</button>
-    <button class="btn btn-action" onclick="switchMode('group')">🧩 GRUPOS UI</button>
-    <button class="btn btn-action" style="background: #e3b341; color: black;" onclick="toggleHistory()">📜 HISTORIAL</button>
-    <button class="btn btn-danger" onclick="resetAll()">🔄 RESET</button>
-</div>
-
-<div id="history-modal">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2 style="color: #e3b341; margin: 0;">📜 HISTORIAL DE RESPUESTAS</h2>
-        <button onclick="toggleHistory()" style="background: none; border: none; color: red; font-size: 24px; cursor: pointer;">✖</button>
-    </div>
-    <div id="history-content">
-        <p style="text-align: center; color: gray;">No hay respuestas todavía.</p>
-    </div>
+    <button class="btn btn-action" onclick="switchMode('turn')">🎤 TURNOS</button>
+    <button class="btn btn-action" onclick="switchMode('group')">🧩 GRUPOS</button>
+    <button class="btn btn-action" onclick="switchMode('history')" style="background: #e3b341; color: black;">📜 HISTORIAL</button>
+    <button class="btn btn-danger" onclick="resetAll()" style="width: auto;">🔄 REINICIAR</button>
 </div>
 
 <div id="monitor-view" class="dashboard-grid grid" style="padding: 20px;"></div>
 
 <div id="turn-view" class="hidden">
-    <div style="text-align: center; margin-top: 40px;">
-        <button id="next-btn" class="btn" onclick="startRoulette()" style="width: 300px; font-size: 28px; background: #1f6feb; padding: 20px;">
-            🎲 GIRAR RULETA
-        </button>
+    <div style="text-align: center; margin-top: 20px;">
+        <button id="next-btn" class="btn" onclick="nextTurn()" style="width: 300px; font-size: 24px; background: #1f6feb;">➡️ SIGUIENTE TURNO</button>
     </div>
-    
+
     <div id="active-turn-card" class="current-turn-box hidden">
-        <p style="color: gray; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px;">TURNO DE:</p>
-        
+        <p style="color: gray; text-transform: uppercase; letter-spacing: 2px;">JUGADOR ACTUAL</p>
         <div id="speaker-name" class="active-speaker">...</div>
         
-        <div id="loading-response" class="hidden" style="color: #e3b341; margin: 20px; font-size: 1.2em;">
-            ⏳ Esperando audio del estudiante...
+        <div id="loading-transcript" class="hidden" style="margin-top:20px;">
+            <span style="font-size:20px; color: #8b949e;">Esperando respuesta... ⏳</span>
         </div>
-        
-        <div id="speaker-text-current" class="transcript-revealed" style="min-height: 40px;"></div>
+
+        <button id="reveal-btn-current" class="btn btn-reveal hidden" onclick="revealCurrent()" style="margin-top:20px;">👁️ MOSTRAR RESPUESTA</button>
+        <div id="speaker-text-current" class="transcript-hidden" style="margin-top: 20px; font-size: 28px; color: #e3b341;"></div>
     </div>
 </div>
 
 <div id="group-view" class="hidden">
-    <div class="groups-grid">
-        <div class="group-col" style="border-color: #d2a8ff;">
-            <div class="group-title" style="color: #d2a8ff;">GRUPO 1</div>
-            <div id="g1-list"></div>
-        </div>
-        <div class="group-col" style="border-color: #79c0ff;">
-            <div class="group-title" style="color: #79c0ff;">GRUPO 2</div>
-            <div id="g2-list"></div>
-        </div>
-        <div class="group-col" style="border-color: #56d364;">
-            <div class="group-title" style="color: #56d364;">GRUPO 3</div>
-            <div id="g3-list"></div>
-        </div>
+    <div style="text-align: center; padding: 10px;">
+        <button class="btn btn-action" onclick="startGroupingAnimation()">⭐ DISTRIBUIR GRUPOS</button>
     </div>
+    <div id="grouping-canvas">
+        <div class="group-box group-1" id="box-1"><h3 style="color: #d2a8ff; text-align: center; border-bottom:1px solid #30363d; padding-bottom:5px;">GRUPO 1</h3></div>
+        <div class="group-box group-2" id="box-2"><h3 style="color: #79c0ff; text-align: center; border-bottom:1px solid #30363d; padding-bottom:5px;">GRUPO 2</h3></div>
+        <div class="group-box group-3" id="box-3"><h3 style="color: #56d364; text-align: center; border-bottom:1px solid #30363d; padding-bottom:5px;">GRUPO 3</h3></div>
+        <div class="pool-area" id="pool-area"></div>
+    </div>
+</div>
+
+<div id="history-view" class="hidden">
+    <h2 style="text-align: center; color: #58a6ff; margin-top: 20px;">HISTORIAL DE RESPUESTAS</h2>
+    <table class="history-table">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Grupo</th>
+                <th>Respuesta</th>
+            </tr>
+        </thead>
+        <tbody id="history-body">
+            </tbody>
+    </table>
 </div>
 
 <script>
@@ -115,190 +115,232 @@ const GROUPS = {
 
 let studentsData = [];
 let currentSpeaker = null;
-let lastGroupPlayed = null;
-let playedStudents = [];
+let usedStudentIds = new Set(); // لتتبع من شارك
+let lastGroup = null; // لتتبع آخر مجموعة شاركت
 
 async function init() {
-    // جلب البيانات الأولية
     const res = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
     studentsData = res.documents;
     
-    renderAllViews();
-    updateHistoryUI(); // تعبئة السجل فوراً
+    // استرجاع الحالة السابقة إذا تم تحديث الصفحة
+    studentsData.forEach(s => {
+        if(s.is_turn && s.transcript) {
+            // إضافة للسجل إذا كان لديه نص ولم يعد دوره
+             addToHistory(s.name, GROUPS[s.name] || '?', s.transcript);
+             usedStudentIds.add(s.$id);
+        }
+    });
 
-    // الاستماع للتغييرات
+    renderMonitor();
+
     client.subscribe(`databases.${CLIENT_CONFIG.databaseId}.collections.${CLIENT_CONFIG.collectionId}.documents`, response => {
         const doc = response.payload;
         const idx = studentsData.findIndex(s => s.$id === doc.$id);
         if (idx !== -1) studentsData[idx] = doc;
-        
-        renderAllViews();
+        renderMonitor();
 
-        // منطق وصول الجواب
+        // إذا وصل النص للمتحدث الحالي
         if (currentSpeaker && currentSpeaker.$id === doc.$id && doc.transcript) {
-            // تحديث الواجهة
-            const loadingEl = document.getElementById('loading-response');
-            if(loadingEl) loadingEl.classList.add('hidden');
-
-            const textBox = document.getElementById('speaker-text-current');
-            textBox.innerText = `"${doc.transcript}"`;
-
-            // تحديث السجل
-            updateHistoryUI();
+            currentSpeaker.transcript = doc.transcript;
+            document.getElementById('loading-transcript').classList.add('hidden');
+            document.getElementById('reveal-btn-current').classList.remove('hidden');
+            document.getElementById('speaker-text-current').dataset.text = doc.transcript;
+            document.getElementById('next-btn').disabled = false; // السماح بالمرور للتالي
+            
+            // تسجيل في الهيستوري تلقائياً (مخفي)
+            addToHistory(doc.name, GROUPS[doc.name] || '?', doc.transcript);
         }
     });
 }
 init();
 
-// دالة وحدة كتحدث كلشي (Monitor + Groups)
-function renderAllViews() {
-    renderMonitor();
-    renderGroupsGrid();
-}
-
 function renderMonitor() {
     const container = document.getElementById('monitor-view');
     container.innerHTML = '';
     studentsData.forEach(s => {
-        if (s.status !== 'online') return;
         const card = document.createElement('div');
         card.className = `card ${s.is_turn ? 'speaking' : ''}`;
-        card.innerHTML = `<h3>${s.name}</h3><p>CONECTADO</p>`;
+        card.style.opacity = s.status === 'online' ? '1' : '0.5';
+        card.innerHTML = `
+            <h3>${s.name}</h3>
+            <p>${s.status === 'online' ? '🟢 ONLINE' : '⚫ OFFLINE'}</p>
+        `;
         container.appendChild(card);
     });
 }
 
-function renderGroupsGrid() {
-    // تفريغ القوائم
-    document.getElementById('g1-list').innerHTML = '';
-    document.getElementById('g2-list').innerHTML = '';
-    document.getElementById('g3-list').innerHTML = '';
+// --- LOGIC: SELECCIÓN DE TURNOS (ROULETTE & RULES) ---
 
-    studentsData.forEach(s => {
-        const gID = GROUPS[s.name] || 1;
-        const div = document.createElement('div');
-        div.className = 'student-item';
-        // النقطة الخضراء للحالة
-        const dotClass = s.status === 'online' ? 'online-dot' : 'offline-dot';
-        div.innerHTML = `<span>${s.name}</span> <span class="${dotClass}"></span>`;
-        // تلوين الاسم إذا كان يتحدث
-        if (s.is_turn) div.style.border = "1px solid #e3b341";
-        
-        document.getElementById(`g${gID}-list`).appendChild(div);
-    });
-}
+async function nextTurn() {
+    const eligible = studentsData.filter(s => s.status === 'online' && !usedStudentIds.has(s.$id));
 
-// ------ منطق العجلة (Roulette Logic) ------
-
-function startRoulette() {
-    if (currentSpeaker) {
-        // إطفاء التلميذ السابق
-        databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeaker.$id, { is_turn: false });
-    }
-    
-    // UI Reset
-    document.getElementById('active-turn-card').classList.remove('hidden');
-    document.getElementById('loading-response').classList.add('hidden');
-    document.getElementById('speaker-text-current').innerText = "";
-    document.getElementById('next-btn').disabled = true;
-
-    // 1. تصفية (Cycle Logic)
-    let eligible = studentsData.filter(s => s.status === 'online');
-    let pool = eligible.filter(s => !playedStudents.includes(s.$id));
-    
-    if (pool.length === 0) {
-        playedStudents = []; // Reset cycle
-        pool = eligible;
-    }
-
-    if (pool.length === 0) { alert("¡Nadie conectado!"); document.getElementById('next-btn').disabled = false; return; }
-
-    // 2. تصفية المجموعة (Group Logic)
-    let candidates = pool.filter(s => GROUPS[s.name] !== lastGroupPlayed);
-    if (candidates.length === 0) candidates = pool;
-
-    const winner = candidates[Math.floor(Math.random() * candidates.length)];
-
-    // Animation
-    const nameBox = document.getElementById('speaker-name');
-    let counter = 0;
-    const interval = setInterval(() => {
-        nameBox.innerText = eligible[Math.floor(Math.random() * eligible.length)].name;
-        counter++;
-        if (counter >= 15) {
-            clearInterval(interval);
-            finalizeTurn(winner);
-        }
-    }, 80);
-}
-
-async function finalizeTurn(student) {
-    document.getElementById('speaker-name').innerText = student.name;
-    document.getElementById('next-btn').disabled = false;
-    document.getElementById('loading-response').classList.remove('hidden');
-    
-    currentSpeaker = student;
-    lastGroupPlayed = GROUPS[student.name];
-    playedStudents.push(student.$id);
-
-    // ✅✅ هنا الكود اللي كان ناقص باش يطلع الزر عند التلميذ ✅✅
-    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, student.$id, { 
-        is_turn: true, 
-        transcript: "" 
-    });
-}
-
-// ------ السجل (History) ------
-function toggleHistory() {
-    const modal = document.getElementById('history-modal');
-    modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
-}
-
-function updateHistoryUI() {
-    const container = document.getElementById('history-content');
-    // جلب كل من لديه transcript
-    const historyData = studentsData.filter(s => s.transcript && s.transcript.length > 0); // ترتيب بسيط
-    
-    if (historyData.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: gray;">No hay respuestas todavía.</p>';
+    if (eligible.length === 0) {
+        alert("¡Todos los estudiantes han participado o no hay nadie conectado!");
         return;
     }
 
-    container.innerHTML = '';
-    // نظهروهم (الأحدث فالأحدث إلا بغيتي ممكن نعكسوهم)
-    historyData.forEach(s => {
-        const row = document.createElement('div');
-        row.className = 'history-row';
-        row.innerHTML = `
-            <span class="history-name">${s.name}</span>
-            <span class="history-text">"${s.transcript}"</span>
-        `;
-        container.appendChild(row);
+    // إخفاء القديم
+    if (currentSpeaker) {
+        databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeaker.$id, { is_turn: false });
+    }
+
+    // تحضير الواجهة
+    document.getElementById('active-turn-card').classList.remove('hidden');
+    document.getElementById('reveal-btn-current').classList.add('hidden');
+    document.getElementById('speaker-text-current').innerText = "";
+    document.getElementById('speaker-text-current').className = "transcript-hidden";
+    document.getElementById('loading-transcript').classList.remove('hidden'); // إظهار الانتظار
+    document.getElementById('next-btn').disabled = true; // منع الضغط مرتين
+
+    // اختيار الفائز (تطبيق الشروط)
+    let candidates = eligible;
+    
+    // شرط: عدم تكرار نفس المجموعة إذا أمكن
+    if (lastGroup !== null) {
+        const differentGroupCandidates = eligible.filter(s => GROUPS[s.name] !== lastGroup);
+        if (differentGroupCandidates.length > 0) {
+            candidates = differentGroupCandidates;
+        }
+    }
+
+    const winner = candidates[Math.floor(Math.random() * candidates.length)];
+    
+    // تشغيل الروليت (Animation)
+    await spinRoulette(eligible, winner);
+
+    // بعد التوقف
+    currentSpeaker = winner;
+    lastGroup = GROUPS[winner.name];
+    usedStudentIds.add(winner.$id);
+    
+    // تفعيل التلميذ في قاعدة البيانات
+    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, winner.$id, { is_turn: true, transcript: "" });
+}
+
+function spinRoulette(pool, winner) {
+    return new Promise(resolve => {
+        const nameDisplay = document.getElementById('speaker-name');
+        let counter = 0;
+        const totalSpins = 20; // عدد مرات التغيير قبل التوقف
+        
+        const interval = setInterval(() => {
+            const randomName = pool[Math.floor(Math.random() * pool.length)].name;
+            nameDisplay.innerText = randomName;
+            nameDisplay.style.color = "#8b949e"; // لون رمادي أثناء الدوران
+            counter++;
+
+            if (counter >= totalSpins) {
+                clearInterval(interval);
+                nameDisplay.innerText = winner.name;
+                nameDisplay.style.color = "#58a6ff"; // اللون الأزرق للفائز
+                resolve();
+            }
+        }, 100); // سرعة الدوران (ms)
     });
 }
 
-function switchMode(mode) {
-    document.getElementById('monitor-view').classList.add('hidden');
-    document.getElementById('turn-view').classList.add('hidden');
-    document.getElementById('group-view').classList.add('hidden');
+function revealCurrent() {
+    const textBox = document.getElementById('speaker-text-current');
+    const text = textBox.dataset.text || "";
+    textBox.innerText = `"${text}"`;
+    textBox.className = "transcript-revealed";
+}
+
+function addToHistory(name, group, text) {
+    const tbody = document.getElementById('history-body');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td style="font-weight:bold;">${name}</td>
+        <td>Grupo ${group}</td>
+        <td>"${text}"</td>
+    `;
+    // إضافة في البداية
+    tbody.insertBefore(row, tbody.firstChild);
+}
+
+// --- LOGIC: GROUPS UX ---
+
+function startGroupingAnimation() {
+    const pool = document.getElementById('pool-area');
+    const onlineStudents = studentsData.filter(s => s.status === 'online');
     
-    if (mode === 'monitor') {
-        document.getElementById('monitor-view').classList.remove('hidden');
-        document.getElementById('mode-title').innerText = "MODO: MONITOR";
-    } else if (mode === 'turn') {
-        document.getElementById('turn-view').classList.remove('hidden');
-        document.getElementById('mode-title').innerText = "MODO: TURNOS";
-    } else if (mode === 'group') {
-        document.getElementById('group-view').classList.remove('hidden');
-        document.getElementById('mode-title').innerText = "MODO: GRUPOS UI";
-    }
+    // 1. تنظيف
+    pool.innerHTML = '';
+    [1, 2, 3].forEach(i => {
+        const box = document.getElementById(`box-${i}`);
+        // مسح الأسماء فقط وترك العنوان
+        Array.from(box.children).forEach(c => { if(c.tagName !== 'H3') c.remove(); });
+    });
+
+    // 2. وضع الأسماء في الأسفل (Pool)
+    onlineStudents.forEach(s => {
+        const tag = document.createElement('div');
+        tag.className = 'name-tag';
+        tag.innerText = s.name;
+        tag.id = `tag-${s.$id}`;
+        pool.appendChild(tag);
+    });
+
+    // 3. التحريك بعد مهلة قصيرة
+    setTimeout(() => {
+        onlineStudents.forEach(s => {
+            const tag = document.getElementById(`tag-${s.$id}`);
+            const groupNum = GROUPS[s.name] || 2; // Default group 2
+            const targetBox = document.getElementById(`box-${groupNum}`);
+            
+            // حساب الإحداثيات للانتقال
+            const startRect = tag.getBoundingClientRect();
+            const targetRect = targetBox.getBoundingClientRect();
+            
+            // نقل العنصر ليكون absolute بالنسبة للشاشة للحركة
+            tag.style.position = 'fixed';
+            tag.style.left = startRect.left + 'px';
+            tag.style.top = startRect.top + 'px';
+            tag.style.margin = 0;
+
+            // التحرك نحو الصندوق
+            // حساب موقع عشوائي قليلاً داخل الصندوق لعدم التطابق التام
+            const offsetX = 20;
+            const offsetY = 50 + (targetBox.children.length * 40); // ترتيب عمودي
+
+            setTimeout(() => {
+                tag.style.left = (targetRect.left + offsetX) + 'px';
+                tag.style.top = (targetRect.top + offsetY) + 'px';
+                
+                // بعد انتهاء الحركة، نقله فعلياً داخل الـ DOM الخاص بالصندوق
+                setTimeout(() => {
+                    tag.style.position = 'static';
+                    tag.style.transform = 'none';
+                    targetBox.appendChild(tag);
+                }, 1000); // نفس مدة الـ transition في CSS
+            }, 100);
+        });
+    }, 500);
+}
+
+function switchMode(mode) {
+    ['monitor', 'turn', 'group', 'history'].forEach(m => {
+        document.getElementById(`${m}-view`).classList.add('hidden');
+    });
+    document.getElementById(`${mode}-view`).classList.remove('hidden');
+    
+    const titles = {
+        'monitor': "MODO: MONITOR",
+        'turn': "MODO: TURNOS",
+        'group': "MODO: GRUPOS",
+        'history': "HISTORIAL"
+    };
+    document.getElementById('mode-title').innerText = titles[mode];
 }
 
 async function resetAll() {
-    if(confirm("¿Reiniciar todo?")) {
+    if(confirm("¿Reiniciar todo el sistema?")) {
+        // إعادة تعيين كل شيء
         studentsData.forEach(s => {
             databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, s.$id, { 
-                status: 'offline', is_turn: false, transcript: "" 
+                status: 'offline', 
+                is_turn: false, 
+                transcript: "" 
             });
         });
         location.reload();
