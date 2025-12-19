@@ -187,36 +187,16 @@
             formData.append("temperature", "0");
 
             try {
-                // 1. إرسال إلى Groq
                 const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${API_KEY}` },
-                    body: formData
+                    method: "POST", headers: { "Authorization": `Bearer ${API_KEY}` }, body: formData
                 });
-                
-                if(!res.ok) throw new Error("Groq API Error: " + res.statusText);
-
                 const data = await res.json();
-                
                 if (data.text) {
-                    statusText.innerText = "Guardando..."; // جاري الحفظ
-                    
-                    // 2. تسجيل في قاعدة البيانات
-                    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
-                        transcript: data.text
-                    });
-
                     statusText.innerText = "¡Enviado!";
                     micBtn.innerText = "✓";
-                } else {
-                    alert("Groq لم يفهم الصوت (نص فارغ). حاول التحدث بصوت أعلى.");
+                    await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, { transcript: data.text });
                 }
-            } catch (e) { 
-                console.error(e); 
-                alert("حدث خطأ: " + e.message); // هذا غادي يوريك فين كاين المشكل بالضبط
-                statusText.innerText = "Error";
-                micBtn.innerText = "⚠️";
-            }
+            } catch (e) { statusText.innerText = "Error"; }
         }
 
         // --- Anti-Cheat ---
