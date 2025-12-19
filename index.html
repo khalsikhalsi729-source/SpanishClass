@@ -3,174 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Estudiantes</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Estudiante Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <script src="config.js"></script>
     <style>
-        /* --- 1. تصميم قائمة الأسماء الجديد (Student Login UX) --- */
-        
-        /* الشبكة (Grid) */
-        #names-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); /* جوج فسطر فالهاتف */
-            gap: 15px;
-            padding: 10px;
-            margin-top: 20px;
-            max-width: 800px;
-            margin-left: auto; 
-            margin-right: auto;
-        }
-
-        /* كارت الاسم */
-        .name-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 16px;
-            padding: 20px 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-            position: relative;
-            overflow: hidden;
-            animation: slideUp 0.5s ease backwards;
-        }
-
-        /* Avatar (الحرف الأول) */
-        .avatar-circle {
-            width: 50px; height: 50px;
-            background: linear-gradient(135deg, #1f6feb, #0d419d);
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 20px; font-weight: bold; color: white;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-
-        /* الاسم */
-        .student-name {
-            font-size: 16px;
-            font-weight: 600;
-            color: #e6edf3;
+        /* --- 0. Global Reset & Fonts --- */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: 'Poppins', sans-serif; /* خط زوين */
             text-align: center;
+            margin: 0; padding: 20px;
+            min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+            overflow-x: hidden;
         }
 
-        /* تأثير الضغط واللمس */
-        .name-card:active { transform: scale(0.95); background: #1f2428; }
-        .name-card:hover { border-color: #58a6ff; transform: translateY(-3px); }
-
-        /* الحالة: ديجا مكونيكطي (Online/Busy) */
-        .name-card.disabled {
-            background: #0d1117;
-            border-color: #21262d;
-            opacity: 0.6;
-            cursor: not-allowed;
-            pointer-events: none; /* ممنوع اللمس */
-        }
-        .name-card.disabled .avatar-circle {
-            background: #30363d;
-            color: #8b949e;
-            box-shadow: none;
-        }
-        .name-card.disabled::after {
-            content: '🔒';
-            position: absolute; top: 10px; right: 10px; font-size: 14px;
-        }
-
-        /* Animation */
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* --- بقية الستايل السابق (Mic, Refresh...) --- */
+        /* --- 1. زر التحديث (Responsive) --- */
         .refresh-btn {
             position: fixed; top: 15px; right: 15px;
             background: rgba(22, 27, 34, 0.95);
             border: 1px solid #30363d; color: #58a6ff;
-            padding: 8px 16px; border-radius: 20px;
-            font-size: 14px; font-weight: bold; cursor: pointer; z-index: 1000;
+            padding: 8px 14px; border-radius: 20px;
+            font-size: 13px; font-weight: 600; cursor: pointer; z-index: 1000;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            backdrop-filter: blur(4px);
         }
+
+        /* --- 2. شبكة الأسماء (Responsive Grid) --- */
+        #login-screen { width: 100%; max-width: 600px; margin-top: 40px; }
+        
+        #names-grid {
+            display: grid;
+            /* أوتوماتيك: كيتأقلم مع عرض الشاشة (من 2 حتى 4 أعمدة) */
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
+            gap: 12px;
+            padding-bottom: 40px;
+        }
+
+        .name-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 16px;
+            padding: 15px 10px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+            position: relative;
+            overflow: hidden;
+            animation: slideUp 0.4s ease backwards;
+        }
+        
+        /* تحسين للموبايل: الـ Active State */
+        .name-card:active { transform: scale(0.96); background: #1f2428; }
+        
+        .avatar-circle {
+            width: 45px; height: 45px; /* صغرتها شوية */
+            background: linear-gradient(135deg, #1f6feb, #0d419d);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: bold; color: white;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .student-name {
+            font-size: 14px; font-weight: 600; color: #e6edf3;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        }
+
+        .name-card.disabled {
+            background: #0d1117; border-color: #21262d; opacity: 0.5; pointer-events: none;
+        }
+        .name-card.disabled::after {
+            content: '🔒'; position: absolute; top: 8px; right: 8px; font-size: 12px;
+        }
+
+        /* --- 3. شاشة المايكروفون (Responsive Mic) --- */
+        #game-screen {
+            width: 100%; height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
         .big-mic-circle {
-            width: 200px; height: 200px; border-radius: 50%;
+            /* الحيلة هنا: العرض نسبي (55% من الشاشة) ولكن عندو حد أقصى (220px) */
+            width: min(220px, 55vw); 
+            height: min(220px, 55vw);
+            border-radius: 50%;
             background: linear-gradient(145deg, #1f6feb, #112f55);
             border: 6px solid rgba(255,255,255,0.1); color: white;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             box-shadow: 0 10px 40px rgba(31, 111, 235, 0.3);
-            transition: all 0.3s; cursor: pointer;
+            transition: all 0.3s; cursor: pointer; user-select: none;
         }
+        
+        /* أيقونة المايك */
+        .mic-icon { font-size: clamp(30px, 8vw, 40px); margin-bottom: 5px; } 
+        /* نص HABLAR */
+        .mic-text { font-size: clamp(14px, 4vw, 18px); font-weight: bold; letter-spacing: 1px; }
+
         .big-mic-circle:active { transform: scale(0.95); }
+        
         .big-mic-circle.recording {
             background: linear-gradient(145deg, #da3633, #8a1c1c);
             animation: pulse-red 1.5s infinite; border-color: rgba(255,0,0,0.3);
         }
+
+        /* --- 4. شاشات أخرى & Animations --- */
+        .hidden { display: none !important; }
+        
+        @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse-red { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(218, 54, 51, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(218, 54, 51, 0); } 100% { transform: scale(1); } }
+
+        /* Media Queries للهواتف الصغيرة جداً (iPhone SE / Fold closed) */
+        @media (max-width: 360px) {
+            #names-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+            .avatar-circle { width: 35px; height: 35px; font-size: 16px; }
+            h2 { font-size: 1.2em; }
+        }
     </style>
 </head>
 <body>
 
-    <button onclick="checkMyStatus()" class="refresh-btn">🔄 </button>
+    <button onclick="checkMyStatus()" class="refresh-btn">🔄</button>
 
     <div id="login-screen">
-        <h2 style="margin-bottom: 5px;">Bienvenido</h2>
-        <p style="color: gray; font-size: 14px; margin-bottom: 30px;">Selecciona tu nombre para entrar</p>
-        
+        <h2 style="margin-bottom: 5px; color:#58a6ff;">Bienvenido</h2>
+        <p style="color: gray; font-size: 14px; margin-bottom: 25px;">Selecciona tu nombre</p>
         <div id="names-grid">
-            <p style="color:gray;">Cargando lista...</p>
+            <p style="color:gray; font-size:14px;">Cargando...</p>
         </div>
     </div>
 
-    <div id="wait-screen" class="hidden connected-screen">
-        <h1 class="connected-text" style="color: #3fb950; font-size: 2.5em;">Conectado</h1>
-        <p style="margin-top: 10px; opacity: 0.6;">Espera la señal del profesor</p>
+    <div id="wait-screen" class="hidden" style="margin-top: 30vh;">
+        <h1 style="color: #3fb950; font-size: clamp(2em, 5vw, 3em);">Conectado</h1>
+        <p style="margin-top: 10px; opacity: 0.6; font-size: 14px;">Espera la señal...</p>
         <div style="margin-top: 30px; font-size: 3em;" id="pulse-dot">🟢</div>
     </div>
 
-    <div id="game-screen" class="hidden" style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-        <h2 style="color: #58a6ff; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 2px;">¡Es tu turno!</h2>
+    <div id="game-screen" class="hidden">
+        <h2 style="color: #58a6ff; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 2px; font-size: clamp(1.2em, 5vw, 1.8em);">¡Es tu turno!</h2>
+        
         <button id="mic-btn" class="big-mic-circle">
-            <span style="font-size: 40px; margin-bottom: 5px;">🎤</span>
-            <span style="font-size: 18px; font-weight: bold;">HABLAR</span>
+            <span class="mic-icon">🎤</span>
+            <span class="mic-text">HABLAR</span>
         </button>
-        <p id="status-text" style="margin-top: 30px; color: #8b949e;">Toca el círculo para hablar</p>
+        
+        <p id="status-text" style="margin-top: 30px; color: #8b949e; font-size: 14px;">Toca el círculo para hablar</p>
     </div>
 
     <div id="busted-screen" class="hidden busted" style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-        <h1 style="font-size: 50px;">¡TE VI! 😡</h1>
-        <p>Saliste de la aplicación</p>
+        <h1 style="font-size: clamp(2.5em, 10vw, 4em);">¡TE VI! 😡</h1>
+        <p style="font-size: 16px;">Saliste de la aplicación</p>
     </div>
 
     <script>
+        // --- LOGIC (UNTOUCHED) ---
         const API_KEY = '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';
         let myDocId = null;
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
 
-        // --- تحميل الأسماء بتصميم الكروت ---
         async function loadStudents() {
             try {
                 const response = await databases.listDocuments(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId);
                 const grid = document.getElementById('names-grid');
-                grid.innerHTML = ''; // مسح "Cargando..."
+                grid.innerHTML = '';
                 
-                // ترتيب الأسماء أبجدياً
+                // Sort Alphabetically
                 const sortedDocs = response.documents.sort((a, b) => a.name.localeCompare(b.name));
 
                 sortedDocs.forEach((doc, index) => {
-                    // إنشاء الكارت
                     const card = document.createElement('div');
                     const isTaken = doc.status === 'online';
-                    
                     card.className = `name-card ${isTaken ? 'disabled' : ''}`;
-                    // إضافة تأخير بسيط للـ Animation باش يبانو بالتدريج
-                    card.style.animationDelay = `${index * 0.05}s`;
+                    card.style.animationDelay = `${index * 0.03}s`; // Faster anim
 
-                    // الحرف الأول للاسم
                     const initial = doc.name.charAt(0).toUpperCase();
 
                     card.innerHTML = `
@@ -178,31 +189,23 @@
                         <div class="student-name">${doc.name}</div>
                     `;
 
-                    // عند الضغط
-                    if(!isTaken) {
-                        card.onclick = () => login(doc.$id);
-                    }
-
+                    if(!isTaken) card.onclick = () => login(doc.$id);
                     grid.appendChild(card);
                 });
             } catch (e) { 
-                document.getElementById('names-grid').innerHTML = '<p style="color:red;">Error de conexión ⚠️</p>';
+                document.getElementById('names-grid').innerHTML = '<p style="color:#da3633;">⚠️ Error de conexión</p>';
             }
         }
         loadStudents();
 
-        // --- باقي المنطق (Login, Mic, Realtime) ---
         async function login(id) {
             myDocId = id;
             try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (err) {}
-
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('wait-screen').classList.remove('hidden');
-
             await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, {
                 status: 'online', cheated: false, is_turn: false, transcript: "" 
             });
-
             startListeners();
             activateTrap();
         }
@@ -215,14 +218,12 @@
 
         async function checkMyStatus() {
             if(!myDocId) {
-                // إذا كان باقي مادخلش، عاود حمل الأسماء (Refresh List)
                 loadStudents();
                 const btn = document.querySelector('.refresh-btn');
-                btn.innerText = "⏳";
-                setTimeout(() => btn.innerText = "🔄", 500);
+                btn.style.transform = "rotate(360deg)";
+                setTimeout(() => btn.style.transform = "rotate(0deg)", 500);
                 return;
             }
-            // إذا كان ديجا دخل
             try {
                 const doc = await databases.getDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId);
                 handleStatusChange(doc);
@@ -231,7 +232,6 @@
 
         function handleStatusChange(data) {
             if (data.cheated) { showScreen('busted-screen'); return; }
-            
             if (data.is_turn === true) {
                 showScreen('game-screen');
                 document.body.style.backgroundColor = '#0d1117';
@@ -248,7 +248,6 @@
             document.getElementById(screenId).classList.remove('hidden');
         }
 
-        // Mic Logic (unchanged)
         const micBtn = document.getElementById('mic-btn');
         const statusText = document.getElementById('status-text');
 
@@ -263,7 +262,7 @@
                     mediaRecorder.start();
                     isRecording = true;
                     micBtn.classList.add('recording');
-                    micBtn.innerHTML = '<span style="font-size:30px;">🔴</span><br>Escuchando...';
+                    micBtn.innerHTML = '<span class="mic-icon">🔴</span><span class="mic-text">Escuchando...</span>';
                     statusText.innerText = "Toca para terminar";
                 } catch (e) { alert("Mic Error"); }
             } else {
@@ -273,7 +272,7 @@
                         const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
                         micBtn.classList.remove('recording');
                         micBtn.style.opacity = "0.7";
-                        micBtn.innerHTML = '⏳<br>Enviando...';
+                        micBtn.innerHTML = '<span class="mic-icon">⏳</span><span class="mic-text">Enviando...</span>';
                         statusText.innerText = "Procesando...";
                         await sendToAI(blob);
                         isRecording = false;
@@ -286,7 +285,7 @@
         function resetMicButton() {
             micBtn.className = 'big-mic-circle';
             micBtn.style.opacity = "1";
-            micBtn.innerHTML = '<span style="font-size: 40px; margin-bottom: 5px;">🎤</span><span style="font-size: 18px; font-weight: bold;">HABLAR</span>';
+            micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-text">HABLAR</span>';
             statusText.innerText = "Toca el círculo para hablar";
             isRecording = false;
         }
@@ -305,7 +304,7 @@
                 });
                 const data = await res.json();
                 if (data.text) {
-                    micBtn.innerHTML = '✓<br>Listo';
+                    micBtn.innerHTML = '<span class="mic-icon">✓</span><span class="mic-text">Listo</span>';
                     statusText.innerText = "¡Enviado!";
                     await databases.updateDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, myDocId, { transcript: data.text });
                 }
