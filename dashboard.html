@@ -194,17 +194,35 @@
             }, 1000);
         }
 
-        function revealText() {
-            // نظهر النص اللي جابو Groq من الداتابيز
-            const student = studentsData.find(s => s.$id === currentSpeakerId);
+        async function revealText() {
             const textBox = document.getElementById('speaker-text');
-            
+            textBox.innerText = "⏳ Cargando..."; // Loading message
+            textBox.style.display = 'block';
+
+            // 1. محاولة البحث في البيانات المحلية
+            let student = studentsData.find(s => s.$id === currentSpeakerId);
+
+            // 2. إذا كان النص فارغاً، نجبر النظام يجيبو من السيرفر (Force Fetch)
+            if (!student || !student.transcript) {
+                try {
+                    console.log("Fetching fresh data from server...");
+                    student = await databases.getDocument(CLIENT_CONFIG.databaseId, CLIENT_CONFIG.collectionId, currentSpeakerId);
+                    
+                    // تحديث البيانات المحلية باش المرة الجاية تكون واجدة
+                    const idx = studentsData.findIndex(s => s.$id === currentSpeakerId);
+                    if(idx !== -1) studentsData[idx] = student;
+                } catch(e) { 
+                    console.error("Error fetching data:", e);
+                }
+            }
+
+            // 3. عرض النتيجة النهائية
             if (student && student.transcript) {
                 textBox.innerText = `"${student.transcript}"`;
+                textBox.className = "transcript-revealed";
             } else {
-                textBox.innerText = "(جاري الاستماع... أو لم يتحدث بعد)";
+                textBox.innerText = "⚠️ No hay respuesta ";
             }
-            textBox.style.display = 'block';
         }
 
         // --- 3. Groups Logic (توزيع المجموعات) ---
